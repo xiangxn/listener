@@ -1,0 +1,5 @@
+用例一:
+1.在V2创建一个交易对ETH/USDT并使其价格为3500
+2.在V3创建一个交易对ETH/USDT并使其价格为3560
+测试delta_x2 = (target_price - price_v2) * x2 / target_price的有效性
+需要观察deltaX2的数据，以及盈利情况

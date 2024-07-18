@@ -1,0 +1,15 @@
+[submodule "trader/lib/forge-std"]
+	path = trader/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "trader/lib/v3-core"]
+	path = trader/lib/v3-core
+	url = https://github.com/uniswap/v3-core
+[submodule "trader/lib/v3-periphery"]
+	path = trader/lib/v3-periphery
+	url = https://github.com/uniswap/v3-periphery
+[submodule "trader/lib/v2-core"]
+	path = trader/lib/v2-core
+	url = https://github.com/uniswap/v2-core
+[submodule "trader/lib/openzeppelin-contracts"]
+	path = trader/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts

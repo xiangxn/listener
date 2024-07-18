@@ -1,0 +1,26 @@
+[profile.default]
+src = "trader/src"
+out = "trader/out"
+cache_path = "trader/cache"
+test = "trader/test"
+script = "trader/script"
+libs = ["lib"]
+optimizer = true
+optimizer_runs = 200
+remappings = [
+"forge-std/=trader/lib/forge-std/src/",
+"@uniswap/v2-core/=trader/lib/v2-core/contracts/",
+"@uniswap/v3-core/=trader/lib/v3-core/",
+"@uniswap/v3-periphery/=trader/lib/v3-periphery/contracts/",
+"@openzeppelin/contracts/=trader/lib/openzeppelin-contracts/contracts/"
+]
+
+[rpc_endpoints]
+testnet = "${RPC_TESTNET}"
+mainnet = "${RPC_MAINNET}"
+base = "${RPC_BASE}"
+bsc = "${RPC_BSC}"
+
+
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
