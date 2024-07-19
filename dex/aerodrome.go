@@ -39,7 +39,7 @@ func (u *Aerodrome) CreatePriceCall(pool *dt.Pool) (calls []*multicall.Call) {
 	return
 }
 
-func (u *Aerodrome) CalcPrice(calls []*multicall.Call, blockNumber *big.Int, pool *dt.Pool) {
+func (u *Aerodrome) CalcPrice(calls []*multicall.Call, blockNumber *big.Int, pool *dt.Pool) (pair dt.Pair) {
 	if len(calls) == 0 || calls[0].Failed || calls[1].Failed || calls[2].Failed || calls[3].Failed {
 		return
 	}
@@ -53,7 +53,9 @@ func (u *Aerodrome) CalcPrice(calls []*multicall.Call, blockNumber *big.Int, poo
 	// Calculate token0 and token1 reserves
 	token0Reserve, token1Reserve := CalcReserveV3(slot0.Tick, tickSpacing, liquidity, slot0.SqrtPriceX96)
 
-	u.SavePair(pool, price, token0Reserve, token1Reserve, blockNumber, u.Fee)
+	// u.SavePair(pool, price, token0Reserve, token1Reserve, blockNumber, u.Fee)
+	pair = u.CreatePair(pool, price, token0Reserve, token1Reserve, blockNumber, u.Fee)
 	u.monitor.Logger().Debug(pool.Token0.Symbol, "/", pool.Token1.Symbol, " price: ", price, " Pool: ", pool.Address,
 		" blockNumber: ", blockNumber, " reserves: ", token0Reserve, token1Reserve, u.Name)
+	return
 }

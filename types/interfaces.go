@@ -19,6 +19,7 @@ type IActions interface {
 	GetSimplePool(addr string) SimplePool
 	SaveTransaction(tx Transaction)
 	SavePair(pool *Pool, price *big.Float, reserve0, reserve1, blockNumber *big.Int, fee float64, dexName string) Pair
+	SavePairs(pairs []Pair)
 	GetTokens(pool *Pool) bool
 	GetPools(poolAddrs []string) (existingPool []string)
 	GetPoolsByTokens(tokens []string) (pools []Pool)

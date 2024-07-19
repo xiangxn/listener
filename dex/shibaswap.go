@@ -27,7 +27,7 @@ func (u *ShibaSwap) CreatePriceCall(pool *dt.Pool) (calls []*multicall.Call) {
 	return
 }
 
-func (u *ShibaSwap) CalcPrice(calls []*multicall.Call, blockNumber *big.Int, pool *dt.Pool) {
+func (u *ShibaSwap) CalcPrice(calls []*multicall.Call, blockNumber *big.Int, pool *dt.Pool) (pair dt.Pair) {
 	if len(calls) == 0 || calls[0].Failed || calls[1].Failed {
 		return
 	}
@@ -35,6 +35,8 @@ func (u *ShibaSwap) CalcPrice(calls []*multicall.Call, blockNumber *big.Int, poo
 	logger := u.monitor.Logger()
 	res := calls[0].Outputs.(*reserves)
 	price := CalcPriceV2(res.Reserve0, res.Reserve1, pool.Token0.Decimals, pool.Token1.Decimals)
-	u.SavePair(pool, price, res.Reserve0, res.Reserve1, blockNumber, u.Fee)
+	// u.SavePair(pool, price, res.Reserve0, res.Reserve1, blockNumber, u.Fee)
+	pair = u.CreatePair(pool, price, res.Reserve0, res.Reserve1, blockNumber, u.Fee)
 	logger.Debug(pool.Token0.Symbol, "/", pool.Token1.Symbol, " price: ", price, " Pool: ", pool.Address, " blockNumber: ", blockNumber, " reserves: ", res.Reserve0, res.Reserve1, u.Name)
+	return
 }

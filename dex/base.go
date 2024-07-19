@@ -100,6 +100,19 @@ func (d *Dex) SavePair(pool *dt.Pool, price *big.Float, reserve0, reserve1, bloc
 	db := d.monitor.DB()
 	return db.SavePair(pool, price, reserve0, reserve1, blockNumber, fee, d.GetName())
 }
+func (d *Dex) CreatePair(pool *dt.Pool, price *big.Float, reserve0, reserve1, blockNumber *big.Int, fee float64) (pair dt.Pair) {
+	pair.Pool = pool.Address
+	pair.Symbol = fmt.Sprintf("%s/%s", pool.Token0.Symbol, pool.Token1.Symbol)
+	pair.Price = tools.ConvertTOFloat64(price)
+	pair.Reserve0 = tools.BigIntToFloat64(reserve0, pool.Token0.Decimals)
+	pair.Reserve1 = tools.BigIntToFloat64(reserve1, pool.Token1.Decimals)
+	pair.BlockNumber = int32(blockNumber.Int64())
+	pair.Token0 = pool.Token0.Address
+	pair.Token1 = pool.Token1.Address
+	pair.Fee = fee
+	pair.DexName = d.GetName()
+	return
+}
 
 func (d *Dex) PriceCallCount() int { return 1 }
 
@@ -110,7 +123,7 @@ func (d *Dex) CreatePriceCall(pool *dt.Pool) (calls []*multicall.Call) {
 	return
 }
 
-func (d *Dex) CalcPrice(calls []*multicall.Call, blockNumber *big.Int, pool *dt.Pool) {
+func (d *Dex) CalcPrice(calls []*multicall.Call, blockNumber *big.Int, pool *dt.Pool) (pair dt.Pair) {
 	if len(calls) == 0 || calls[0].Failed {
 		return
 	}
@@ -122,8 +135,10 @@ func (d *Dex) CalcPrice(calls []*multicall.Call, blockNumber *big.Int, pool *dt.
 	}
 	res := call.Outputs.(*reserves)
 	price := CalcPriceV2(res.Reserve0, res.Reserve1, pool.Token0.Decimals, pool.Token1.Decimals)
-	d.SavePair(pool, price, res.Reserve0, res.Reserve1, blockNumber, d.Fee)
+	// d.SavePair(pool, price, res.Reserve0, res.Reserve1, blockNumber, d.Fee)
+	pair = d.CreatePair(pool, price, res.Reserve0, res.Reserve1, blockNumber, d.Fee)
 	logger.Debug(pool.Token0.Symbol, "/", pool.Token1.Symbol, " price: ", price, " Pool: ", pool.Address, " blockNumber: ", blockNumber, " reserves: ", res.Reserve0, res.Reserve1, d.Name)
+	return
 }
 
 // 处理非标准token发生的异常

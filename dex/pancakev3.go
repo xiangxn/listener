@@ -52,7 +52,7 @@ func (u *PancakeV3) CreatePriceCall(pool *dt.Pool) (calls []*multicall.Call) {
 	return
 }
 
-func (u *PancakeV3) CalcPrice(calls []*multicall.Call, blockNumber *big.Int, pool *dt.Pool) {
+func (u *PancakeV3) CalcPrice(calls []*multicall.Call, blockNumber *big.Int, pool *dt.Pool) (pair dt.Pair) {
 	if len(calls) == 0 {
 		return
 	}
@@ -68,7 +68,9 @@ func (u *PancakeV3) CalcPrice(calls []*multicall.Call, blockNumber *big.Int, poo
 	// Calculate token0 and token1 reserves
 	token0Reserve, token1Reserve := CalcReserveV3(slot0.Tick, tickSpacing, liquidity, slot0.SqrtPriceX96)
 
-	u.SavePair(pool, price, token0Reserve, token1Reserve, blockNumber, u.Fee)
+	// u.SavePair(pool, price, token0Reserve, token1Reserve, blockNumber, u.Fee)
+	pair = u.CreatePair(pool, price, token0Reserve, token1Reserve, blockNumber, u.Fee)
 	u.monitor.Logger().Debug(pool.Token0.Symbol, "/", pool.Token1.Symbol, " price: ", price, " Pool: ", pool.Address,
 		" blockNumber: ", blockNumber, " reserves: ", token0Reserve, token1Reserve, u.Name)
+	return
 }

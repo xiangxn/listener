@@ -557,6 +557,7 @@ func (m *monitor) UpdatePrice(pools []dt.Pool) {
 	}
 
 	var wg sync.WaitGroup
+	taskChan := make(chan dt.Pair)
 	resCalls := results[startIndex:]
 	for i := 0; i < len(resCalls); {
 		c := resCalls[i]
@@ -566,12 +567,21 @@ func (m *monitor) UpdatePrice(pools []dt.Pool) {
 		pcs := resCalls[i : i+d.PriceCallCount()]
 		wg.Add(1)
 		go func(res []*multicall.Call, p *dt.Pool, dd IDex, bn *big.Int) {
-			dd.CalcPrice(res, bn, p)
+			pair := dd.CalcPrice(res, bn, p)
+			taskChan <- pair
 			wg.Done()
 		}(pcs, &p, d, blockNumber)
 		i += d.PriceCallCount()
 	}
-	wg.Wait()
+	go func() {
+		wg.Wait()
+		close(taskChan)
+	}()
+	var pairs []dt.Pair
+	for pair := range taskChan {
+		pairs = append(pairs, pair)
+	}
+	m.database.SavePairs(pairs)
 }
 
 func (m *monitor) GetUseGas(buyPool, sellPool *dt.Pair, amount float64) int64 {

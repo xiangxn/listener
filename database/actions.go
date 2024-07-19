@@ -113,6 +113,30 @@ func (a Actions) SaveTransaction(tx dt.Transaction) {
 	}
 }
 
+func (a Actions) SavePairs(pairs []dt.Pair) {
+	ctx, cancel := context.WithCancel(a.Mctx)
+	defer cancel()
+
+	var wms []mongo.WriteModel
+	for _, pair := range pairs {
+		if pair.Pool != "" {
+			wms = append(wms, mongo.NewUpdateOneModel().
+				SetFilter(bson.M{"pool": pair.Pool}).
+				SetUpdate(bson.M{"$set": pair, "$inc": bson.M{"updateTimes": 1}}).
+				SetUpsert(true))
+		}
+	}
+	if len(wms) < 1 {
+		a.Logger.WithField(FieldTag, "SavePairs").Info("没有交易对价格被更新")
+		return
+	}
+	bulkOptions := options.BulkWrite().SetOrdered(false)
+	_, err := a.DB.Collection(TABLE_PRICE).BulkWrite(ctx, wms, bulkOptions)
+	if err != nil {
+		a.Logger.WithField(FieldTag, "SavePairs").Error(err)
+	}
+}
+
 func (a Actions) SavePair(pool *dt.Pool, price *big.Float, reserve0, reserve1, blockNumber *big.Int, fee float64, dexName string) (pair dt.Pair) {
 	ctx, cancel := context.WithCancel(a.Mctx)
 	defer cancel()
@@ -135,7 +159,7 @@ func (a Actions) SavePair(pool *dt.Pool, price *big.Float, reserve0, reserve1, b
 			{Key: "$inc", Value: bson.D{{Key: "updateTimes", Value: 1}}}},
 		options.Update().SetUpsert(true))
 	if err != nil {
-		a.Logger.Error("SavePrice error:", err)
+		a.Logger.Error("SavePair error:", err)
 	}
 	return
 }

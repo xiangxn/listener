@@ -58,7 +58,7 @@ func (u *UniswapV3) CreatePriceCall(pool *dt.Pool) (calls []*multicall.Call) {
 	return
 }
 
-func (u *UniswapV3) CalcPrice(calls []*multicall.Call, blockNumber *big.Int, pool *dt.Pool) {
+func (u *UniswapV3) CalcPrice(calls []*multicall.Call, blockNumber *big.Int, pool *dt.Pool) (pair dt.Pair) {
 	if len(calls) == 0 || calls[0].Failed || calls[1].Failed || calls[2].Failed || calls[3].Failed {
 		return
 	}
@@ -72,9 +72,11 @@ func (u *UniswapV3) CalcPrice(calls []*multicall.Call, blockNumber *big.Int, poo
 	// Calculate token0 and token1 reserves
 	token0Reserve, token1Reserve := CalcReserveV3(slot0.Tick, tickSpacing, liquidity, slot0.SqrtPriceX96)
 
-	u.SavePair(pool, price, token0Reserve, token1Reserve, blockNumber, u.Fee)
+	// u.SavePair(pool, price, token0Reserve, token1Reserve, blockNumber, u.Fee)
+	pair = u.CreatePair(pool, price, token0Reserve, token1Reserve, blockNumber, u.Fee)
 	u.monitor.Logger().Debug(pool.Token0.Symbol, "/", pool.Token1.Symbol, " price: ", price, " Pool: ", pool.Address,
 		" blockNumber: ", blockNumber, " reserves: ", token0Reserve, token1Reserve, u.Name)
+	return
 }
 
 func CalcReserveV3(tick *big.Int, tickSpacing int32, liquidity, sqrtPriceX96 *big.Int) (token0Reserve, token1Reserve *big.Int) {
