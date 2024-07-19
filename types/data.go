@@ -61,6 +61,9 @@ func (x SimplePool) Equal(y SimplePool) bool {
 	b := (x.Token0 == y.Token0 && x.Token1 == y.Token1) || (x.Token0 == y.Token1 && x.Token1 == y.Token0)
 	return b
 }
+func (p Pool) Equal(y Pool) bool {
+	return p.Address == y.Address
+}
 
 type Transaction struct {
 	Tx         string    `bson:"tx"`
