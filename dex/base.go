@@ -313,14 +313,15 @@ func FetchPool(m dt.IMonitor, pools []string, factorys []string) (failPool []str
 	failTokens := BatchToken(m, tokens)
 	// 处理获取token信息失败
 	var failPoolIndex []int
-	for _, token := range failTokens {
-		for i, p := range docs {
+	for i, p := range docs {
+		for _, token := range failTokens {
 			if p.(dt.SimplePool).Token0 == token || p.(dt.SimplePool).Token1 == token {
 				failPoolIndex = append(failPoolIndex, i)
 				failPool = append(failPool, p.(dt.SimplePool).Address)
 			}
 		}
 	}
+	failPoolIndex = pie.Unique(failPoolIndex)
 	// 删除获取token失败的pool信息
 	if len(failPoolIndex) > 0 {
 		docs = pie.Delete(docs, failPoolIndex...)
@@ -363,6 +364,7 @@ func BatchToken(m dt.IMonitor, tokens []string) (result []string) {
 	for res := range taskChan {
 		result = append(result, res...)
 	}
+	result = pie.Unique(result)
 	return
 }
 
