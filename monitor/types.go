@@ -52,6 +52,7 @@ type monitor struct {
 	tokenBlacklist     []string
 	tokenErc20a        []string
 	privateKey         string
+	signKey            string
 	chainId            *big.Int
 	baseFee            *big.Int
 	gasPrice           float64

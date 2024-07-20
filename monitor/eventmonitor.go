@@ -6,7 +6,6 @@ import (
 	"encoding/base32"
 	"encoding/json"
 	"fmt"
-	"io"
 	"math/big"
 	"net/http"
 	"os"
@@ -23,13 +22,14 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/xiangxn/go-multicall"
 
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/xiangxn/listener/config"
 	"github.com/xiangxn/listener/database"
 	"github.com/xiangxn/listener/dex"
+	"github.com/xiangxn/listener/flashbots"
 	si "github.com/xiangxn/listener/simulation"
 	"github.com/xiangxn/listener/tools"
 	dt "github.com/xiangxn/listener/types"
@@ -422,6 +422,23 @@ func (m *monitor) GetPrivateKey() string {
 	m.cipher = [32]byte{}
 	return m.privateKey
 }
+func (m *monitor) GetSignKey() string {
+	if m.signKey != "" {
+		return m.signKey
+	}
+	m.signKey = os.Getenv("SIGN_WIF")
+	ciphertext, err := base32.StdEncoding.DecodeString(m.signKey)
+	if err != nil {
+		panic(fmt.Sprintln("Error base32 decode:", err))
+	}
+	pk, err := tools.Decrypt(ciphertext, m.cipher[:])
+	if err != nil {
+		panic(fmt.Sprintln("Error decrypting:", err))
+	}
+	m.signKey = string(pk)
+	m.cipher = [32]byte{}
+	return m.signKey
+}
 func (m *monitor) GetHttpClient() *ethclient.Client {
 	return m.httpClient
 }
@@ -687,9 +704,9 @@ func (m *monitor) Swap(client *ethclient.Client, params dt.SwapParams, traderCon
 	} else {
 		switch m.cfg.Rpcs.Flashbots {
 		case "alchemy":
-			err = m.alchemySendPrivateTransaction(signedTx, params.Deadline)
+			err = m.sendPrivateTransaction(ctx, signedTx, params.Deadline, m.cfg.Rpcs.Http)
 		case "flashbot":
-			err = m.sendPrivateTransaction(ctx, signedTx, params.Deadline)
+			err = m.sendPrivateTransaction(ctx, signedTx, params.Deadline, "")
 		default:
 			err = client.SendTransaction(ctx, signedTx)
 		}
@@ -721,54 +738,35 @@ func (m *monitor) Swap(client *ethclient.Client, params dt.SwapParams, traderCon
 	return
 }
 
-func (m *monitor) alchemySendPrivateTransaction(signedTx *types.Transaction, maxBlock uint64) error {
+func (m *monitor) sendPrivateTransaction(ctx context.Context, signedTx *types.Transaction, maxBlock uint64, url string) error {
 	data, err := signedTx.MarshalBinary()
 	if err != nil {
 		return err
 	}
-	js := fmt.Sprintf("{\"id\":1,\"jsonrpc\":\"2.0\",\"method\":\"eth_sendPrivateTransaction\",\"params\":[{\"tx\":\"%s\",\"maxBlockNumber\":\"%s\"}]}",
-		hexutil.Encode(data),
-		fmt.Sprintf("0x%x", maxBlock),
-	)
-	payload := strings.NewReader(js)
-	req, _ := http.NewRequest("POST", m.cfg.Rpcs.Http, payload)
+	param := flashbots.ParamsPrivateTransaction{
+		Tx:             hexutil.Encode(data),
+		MaxBlockNumber: fmt.Sprintf("0x%x", maxBlock),
+	}
+	param.Preferences.Fast = true
 
-	req.Header.Add("accept", "application/json")
-	req.Header.Add("content-type", "application/json")
+	privateKey := si.GetPrivateKey(m.GetSignKey())
+	fromAddress := si.GetAddress(privateKey)
+	resp, err := flashbots.FlashbotRequest(ctx, privateKey, &fromAddress, url, "eth_sendPrivateTransaction", param)
+	if err != nil {
+		return errors.Wrap(err, "flashbot private TX request")
+	}
 
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
+	rr := &flashbots.SendPrivateTransactionResponse{}
 
-	body, err := io.ReadAll(res.Body)
+	err = json.Unmarshal(resp, rr)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "unmarshal flashbot response:%v", string(resp))
 	}
-	m.logger.Debug("alchemySendPrivateTransaction result:", string(body))
-	return nil
-}
+	if rr.Error.Code != 0 {
+		errStr := fmt.Sprintf("flashbot request returned an error:%+v,%v block:%v", rr.Error, rr.Message, maxBlock)
+		return errors.New(errStr)
+	}
 
-func (m *monitor) sendPrivateTransaction(ctx context.Context, signedTx *types.Transaction, maxBlock uint64) error {
-	rpcClient, err := rpc.Dial("https://relay.flashbots.net")
-	if err != nil {
-		return err
-	}
-	data, err := signedTx.MarshalBinary()
-	if err != nil {
-		return err
-	}
-	params := map[string]interface{}{
-		"tx":             hexutil.Encode(data),
-		"maxBlockNumber": fmt.Sprintf("0x%x", maxBlock),
-	}
-	var result string
-	err = rpcClient.CallContext(ctx, &result, "eth_sendPrivateTransaction", params)
-	if err != nil {
-		return err
-	}
-	m.logger.Debug("sendPrivateTransaction result:", result)
 	return nil
 }
 
