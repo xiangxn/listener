@@ -747,7 +747,7 @@ func (m *monitor) sendPrivateTransaction(ctx context.Context, signedTx *types.Tr
 		Tx:             hexutil.Encode(data),
 		MaxBlockNumber: fmt.Sprintf("0x%x", maxBlock),
 	}
-	param.Preferences.Fast = true
+	// param.Preferences.Fast = true
 
 	privateKey := si.GetPrivateKey(m.GetSignKey())
 	fromAddress := si.GetAddress(privateKey)
