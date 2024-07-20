@@ -46,7 +46,10 @@ type ParamsPrivateTransaction struct {
 	Tx             string `json:"tx,omitempty"`
 	MaxBlockNumber string `json:"maxBlockNumber,omitempty"`
 	Preferences    struct {
-		Fast bool `json:"fast,omitempty"`
+		Fast    bool `json:"fast,omitempty"`
+		Privacy struct {
+			Builders []string `json:"builders,omitempty"`
+		} `json:"privacy,omitempty"`
 	} `json:"preferences,omitempty"`
 }
 
