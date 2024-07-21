@@ -419,7 +419,7 @@ func (m *monitor) GetPrivateKey() string {
 		panic(fmt.Sprintln("Error decrypting:", err))
 	}
 	m.privateKey = string(pk)
-	m.cipher = [32]byte{}
+	// m.cipher = [32]byte{}
 	return m.privateKey
 }
 func (m *monitor) GetSignKey() string {
@@ -436,7 +436,7 @@ func (m *monitor) GetSignKey() string {
 		panic(fmt.Sprintln("Error decrypting:", err))
 	}
 	m.signKey = string(pk)
-	m.cipher = [32]byte{}
+	// m.cipher = [32]byte{}
 	return m.signKey
 }
 func (m *monitor) GetHttpClient() *ethclient.Client {
