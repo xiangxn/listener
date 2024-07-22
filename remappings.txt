@@ -3,3 +3,4 @@ forge-std/=trader/lib/forge-std/src/
 @uniswap/v3-core/=trader/lib/v3-core/
 @uniswap/v3-periphery/=trader/lib/v3-periphery/contracts/
 @openzeppelin/contracts/=trader/lib/openzeppelin-contracts/contracts/
+pancake-v3-contracts/=trader/lib/pancake-v3-contracts/projects/
