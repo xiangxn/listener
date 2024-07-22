@@ -155,7 +155,13 @@ func New(opt *dt.Options) (dt.IMonitor, error) {
 			m.dexs[d.Factory] = dex.GetDex[dex.Aerodrome](d, m)
 		}
 	}
+	m.InitBaseTokens()
+	m.handler.InitBaseTokens(m)
 	return m, nil
+}
+
+func (m *monitor) InitBaseTokens() {
+	dex.InitBaseTokens(m, m.factorys)
 }
 
 // 清理缓存的事件
@@ -566,10 +572,10 @@ func (m *monitor) UpdatePrice(pools []dt.Pool) {
 	blockNumber := calls[0].Outputs.(*dt.ResBigInt).Int
 	m.baseFee = calls[1].Outputs.(*dt.ResBigInt).Int
 	if startIndex > 2 {
-		bts, decs := m.handler.GetBaseTokens()
+		bts := m.handler.GetBaseTokens()
 		for i, bt := range bts {
 			balance := calls[i+1].Outputs.(*dt.ResBigInt).Int
-			m.baseBalance[bt] = tools.BigIntToFloat64(balance, decs[i])
+			m.baseBalance[bt.Address] = tools.BigIntToFloat64(balance, bt.Decimals)
 		}
 	}
 

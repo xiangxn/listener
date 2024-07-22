@@ -202,8 +202,26 @@ func UnpackSwapEvent[T any](vLog types.Log, swapAbi abi.ABI, eventName string) T
 }
 
 // 获取交易对token信息
-func GetTokens(m dt.IMonitor, pool *dt.Pool) bool {
-	return m.DB().GetTokens(pool)
+func GetPoolTokens(m dt.IMonitor, pool *dt.Pool) bool {
+	return m.DB().GetPoolTokens(pool)
+}
+
+func InitBaseTokens(m dt.IMonitor, factorys []string) {
+	conf := m.Config().Strategies
+	var pools []string
+	baseTokens := pie.Keys(conf.BaseTokens)
+	for _, bt := range baseTokens {
+		pools = append(pools, conf.BaseTokens[bt]...)
+	}
+	pools = pie.Unique(pools)
+	existingPool := m.DB().GetPools(pools)
+	missingPool := pie.FilterNot(pools, func(value string) bool {
+		return pie.Contains(existingPool, value)
+	})
+	if len(missingPool) == 0 {
+		return
+	}
+	BatchPool(m, missingPool, factorys)
 }
 
 // 把池数据(包括token数据)存储到数据库中,同时过滤掉不支持的交易所的池子的事件
@@ -502,7 +520,7 @@ func GetFactory(m dt.IMonitor, pool string) *dt.Pool {
 		result.Address = tp.Address
 		result.Token0 = dt.Token{Address: tp.Token0}
 		result.Token1 = dt.Token{Address: tp.Token1}
-		if GetTokens(m, &result) {
+		if GetPoolTokens(m, &result) {
 			return &result
 		}
 	}

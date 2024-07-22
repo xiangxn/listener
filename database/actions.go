@@ -164,14 +164,34 @@ func (a Actions) SavePair(pool *dt.Pool, price *big.Float, reserve0, reserve1, b
 	return
 }
 
-func (a Actions) GetTokens(pool *dt.Pool) bool {
+func (a Actions) GetTokens(addrs []string) (tokens []dt.Token) {
+	ctx, cancel := context.WithCancel(a.Mctx)
+	defer cancel()
+
+	filter := bson.M{"address": bson.M{"$in": addrs}}
+	cursor, err := a.DB.Collection(TABLE_TOKEN).Find(ctx, filter)
+	if err != nil {
+		a.Logger.Error("GetTokens error: ", err)
+		return
+	}
+	defer cursor.Close(ctx)
+
+	err = cursor.All(ctx, &tokens)
+	if err != nil {
+		a.Logger.Error("GetPools error: ", err)
+		return
+	}
+	return
+}
+
+func (a Actions) GetPoolTokens(pool *dt.Pool) bool {
 	ctx, cancel := context.WithCancel(a.Mctx)
 	defer cancel()
 
 	filter := bson.M{"address": bson.M{"$in": []string{pool.Token0.Address, pool.Token1.Address}}}
 	cursor, err := a.DB.Collection(TABLE_TOKEN).Find(ctx, filter)
 	if err != nil {
-		a.Logger.Error("GetTokens error: ", err)
+		a.Logger.Error("GetPoolTokens error: ", err)
 		return false
 	}
 	defer cursor.Close(ctx)
@@ -180,7 +200,7 @@ func (a Actions) GetTokens(pool *dt.Pool) bool {
 	for cursor.Next(ctx) {
 		var token dt.Token
 		if err := cursor.Decode(&token); err != nil {
-			a.Logger.Error("GetTokens error: ", err)
+			a.Logger.Error("GetPoolTokens error: ", err)
 			return false
 		}
 		switch token.Address {
@@ -254,7 +274,7 @@ func (a Actions) GetPoolsByTokens(tokens []string) (pools []dt.Pool) {
 			Token0:  dt.Token{Address: p.Token0},
 			Token1:  dt.Token{Address: p.Token1},
 		}
-		if a.GetTokens(&pool) {
+		if a.GetPoolTokens(&pool) {
 			pools = append(pools, pool)
 		}
 	}

@@ -11,9 +11,9 @@
             "mode": "debug",
             "program": "${workspaceFolder}/main.go",
             "args": [
-                "stats",
-                "-D",
-                "10"
+                "-c",
+                "bsc.config.json",
+                "arb"
             ],
             "env": {},
             "buildFlags": "",

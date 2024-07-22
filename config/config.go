@@ -31,6 +31,9 @@ type Configuration struct {
 		Enable bool   `json:"enable"`
 		Funds  string `json:"funds"`
 	} `json:"simulation"`
+	Strategies struct {
+		BaseTokens map[string][]string `json:"base_tokens"`
+	} `json:"strategies"`
 	// 事件等待时间，单位毫秒
 	EventWaitingTime uint32  `json:"event_waiting_time"`
 	GasPrice         float64 `json:"gas_price"`

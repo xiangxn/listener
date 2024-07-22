@@ -35,87 +35,65 @@ const (
 var BorrowPools = []string{USDCUSDT, DAIUSDT, DAIUSDC, ETHUSDT, USDCETH}
 
 type MovingBrick struct {
+	baseTokens  map[string]dt.Token
+	borrowPools map[string][]dt.SimplePool
 }
 
 var _ dt.EventHandler = &MovingBrick{}
 
 func (m *MovingBrick) GetBaseDecimals(baseToken string) uint64 {
-	bts, decs := m.GetBaseTokens()
-	for i, v := range bts {
-		if v == baseToken {
-			return decs[i]
-		}
-	}
-	return 18
+	return m.baseTokens[baseToken].Decimals
 }
 
 func (m *MovingBrick) CreateBalanceCalls(tokenABI string, account common.Address) (calls []*multicall.Call) {
-	b1, err := multicall.NewContract(tokenABI, BaseTokens[0])
-	if err != nil {
-		log.Fatalf("CreateBalanceCalls:%s", err)
-		return
+	for _, bt := range pie.Keys(m.baseTokens) {
+		b, err := multicall.NewContract(tokenABI, bt)
+		if err != nil {
+			log.Fatalf("CreateBalanceCalls:%s", err)
+			return
+		}
+		calls = append(calls, b.NewCall(new(dt.ResBigInt), "balanceOf", account))
 	}
-	b2, err := multicall.NewContract(tokenABI, BaseTokens[1])
-	if err != nil {
-		log.Fatalf("CreateBalanceCalls:%s", err)
-		return
-	}
-	b3, err := multicall.NewContract(tokenABI, BaseTokens[2])
-	if err != nil {
-		log.Fatalf("CreateBalanceCalls:%s", err)
-		return
-	}
-	calls = append(calls, b1.NewCall(new(dt.ResBigInt), "balanceOf", account))
-	calls = append(calls, b2.NewCall(new(dt.ResBigInt), "balanceOf", account))
-	calls = append(calls, b3.NewCall(new(dt.ResBigInt), "balanceOf", account))
 	return
 }
 
-func (m *MovingBrick) GetBaseTokens() ([]string, []uint64) {
-	return BaseTokens, []uint64{18, 6, 6}
+func (m *MovingBrick) InitBaseTokens(monitor dt.IMonitor) {
+	if len(m.baseTokens) == 0 {
+		m.baseTokens = make(map[string]dt.Token)
+	}
+	if len(m.borrowPools) == 0 {
+		m.borrowPools = make(map[string][]dt.SimplePool)
+	}
+	conf := monitor.Config().Strategies
+	baseTokens := pie.Keys(conf.BaseTokens)
+	ts := monitor.DB().GetTokens(baseTokens)
+	for _, t := range ts {
+		m.baseTokens[t.Address] = t
+	}
+	for _, bt := range baseTokens {
+		bps := conf.BaseTokens[bt]
+		m.borrowPools[bt] = monitor.DB().GetSimplePools(bps)
+	}
 }
 
-func (m *MovingBrick) getBorrowPool(buyPool, sellPool *dt.Pair, baseToken string, isUSD bool) (borrow string, position uint8) {
-	pool := ""
-	if pie.Contains(BorrowPools, buyPool.Pool) {
-		pool = buyPool.Pool
-	} else if pie.Contains(BorrowPools, sellPool.Pool) {
-		pool = sellPool.Pool
-	}
-	if isUSD {
-		switch pool {
-		case USDCUSDT:
-			if baseToken == BaseTokens[1] { //USDC
-				borrow = DAIUSDC
-				position = 1
-			} else { //USDT
-				borrow = DAIUSDT
-				position = 1
-			}
-		case DAIUSDT:
-			borrow = USDCUSDT
-			position = 1
-		case DAIUSDC:
-			borrow = USDCUSDT
-			position = 0
-		default:
-			borrow = USDCUSDT
-			if baseToken == BaseTokens[1] { //USDC
+func (m *MovingBrick) GetBaseTokens() []dt.Token {
+	return pie.Values(m.baseTokens)
+}
+
+func (m *MovingBrick) getBorrowPool(buyPool, sellPool *dt.Pair, baseToken string) (borrow string, position uint8) {
+	borrowPools := m.borrowPools[baseToken]
+	for _, bp := range borrowPools {
+		if bp.Address != buyPool.Pool && bp.Address != sellPool.Pool {
+			borrow = bp.Address
+			if baseToken == bp.Token0 {
 				position = 0
-			} else { //USDT
+			} else {
 				position = 1
 			}
-		}
-	} else {
-		if pool != ETHUSDT {
-			borrow = ETHUSDT
-			position = 0
-		} else {
-			borrow = USDCETH
-			position = 1
+			return
 		}
 	}
-	return
+	return borrowPools[0].Address, 0
 }
 
 func (m *MovingBrick) isUSD(token string) bool {
@@ -203,21 +181,19 @@ func (m *MovingBrick) CalcArbitrage(monitor dt.IMonitor, event types.Log, pool *
 	amount, profit, avgPrice := m.calcArbitrage(monitor, sellPool, buyPool)
 	if profit > 0 {
 		var profitUSD float64
-		var borrow string
-		var position uint8
 		var gasUSD float64
 		// ETH/USDC的平均价格,如果baseToken是ETH时价格表示为ETH/USDC,如果是USDC时价格表示为USDC/ETH
 		avgBasePrice := m.GetBasePrice(monitor, baseToken)
 		gas := monitor.GetUseGas(buyPool, sellPool, amount)
+		borrow, position := m.getBorrowPool(buyPool, sellPool, baseToken)
 		if m.isUSD(baseToken) {
 			profitUSD = profit / avgPrice
-			borrow, position = m.getBorrowPool(buyPool, sellPool, baseToken, true)
+
 			gasUSD = float64(gas) * gasPrice / avgBasePrice
 		} else {
 			// 报价token相对于QuoteToken的价格
 			quotePrice := avgBasePrice / avgPrice
 			profitUSD = quotePrice * profit
-			borrow, position = m.getBorrowPool(buyPool, sellPool, baseToken, false)
 			gasUSD = float64(gas) * gasPrice * avgBasePrice
 		}
 		profitUSD -= gasUSD

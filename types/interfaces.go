@@ -20,7 +20,7 @@ type IActions interface {
 	SaveTransaction(tx Transaction)
 	SavePair(pool *Pool, price *big.Float, reserve0, reserve1, blockNumber *big.Int, fee float64, dexName string) Pair
 	SavePairs(pairs []Pair)
-	GetTokens(pool *Pool) bool
+	GetPoolTokens(pool *Pool) bool
 	GetPools(poolAddrs []string) (existingPool []string)
 	GetPoolsByTokens(tokens []string) (pools []Pool)
 	SavePools(pools []interface{}) error
@@ -32,6 +32,7 @@ type IActions interface {
 	GetToken(addr string) Token
 	GetGas(buyPool, sellPool string) (min, max int64)
 	GetFailTransacttionCount(buyPool, sellPool string) int
+	GetTokens(addrs []string) []Token
 
 	//查询Transacttion
 	SearchTransacttion(simulation bool, start time.Time, end time.Time) (txs []Transaction)
@@ -71,8 +72,9 @@ type IMonitor interface {
 
 // EventHandler 事件业务句柄
 type EventHandler interface {
+	InitBaseTokens(monitor IMonitor)
 	CreateBalanceCalls(tokenABI string, account common.Address) []*multicall.Call
-	GetBaseTokens() ([]string, []uint64)
+	GetBaseTokens() []Token
 	GetBaseToken(token0, token1 string) string
 	GetBaseDecimals(baseToken string) uint64
 	// 计算套利,如果能套利则返回真
