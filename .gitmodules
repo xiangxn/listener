@@ -16,3 +16,6 @@
 [submodule "lib/pancake-v3-contracts"]
 	path = lib/pancake-v3-contracts
 	url = https://github.com/pancakeswap/pancake-v3-contracts
+[submodule "trader/lib/pancake-v3-contracts"]
+	path = trader/lib/pancake-v3-contracts
+	url = https://github.com/pancakeswap/pancake-v3-contracts
