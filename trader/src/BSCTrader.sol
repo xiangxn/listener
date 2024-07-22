@@ -110,7 +110,7 @@ contract BSCTrader is Ownable, IPancakeV3FlashCallback, IUniswapV3SwapCallback, 
             // borrow(data);
             hasBorrow = true;
             (uint256 a0, uint256 a1) = borrow == 0 ? (data.amount, uint256(0)) : (uint256(0), data.amount);
-            IUniswapV3Pool(data.borrowPool).flash(address(this), a0, a1, abi.encode(data));
+            IPancakeV3Pool(data.borrowPool).flash(address(this), a0, a1, abi.encode(data));
         } else {
             _swap(data);
             uint256 balanceAfter = balances(data.baseToken);
