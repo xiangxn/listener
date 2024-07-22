@@ -1,8 +1,12 @@
+import os
+from dotenv import load_dotenv
 from web3 import Web3
 from multicall import Call, Multicall
 
+load_dotenv()
+
 # 初始化Web3
-infura_url = 'https://eth-mainnet.g.alchemy.com/v2/nfYH4sMk9yov8TyR61N9PboMutjtrBe7'
+infura_url = os.getenv("RPC_MAINNET")
 web3 = Web3(Web3.HTTPProvider(infura_url))
 
 # Uniswap V3 Pool合约地址和ABI
