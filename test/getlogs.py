@@ -9,7 +9,7 @@ load_dotenv()
 web3 = Web3(Web3.HTTPProvider(os.getenv("RPC_MAINNET")))
 
 # 合约地址和ABI
-contract_address = '0xC4b26b26d720467d96E18f08664A888d4116cEa6'
+contract_address = '0x75001b3FfE0f77864c7Dc64c55e1E22b205e4a07'
 contract_abi = [{
     "anonymous":
     False,
@@ -65,7 +65,7 @@ def get_event_logs(from_block, to_block):
 
 
 # 示例调用
-from_block = 20332836
+from_block = 20361539
 to_block = 'latest'
 logs = get_event_logs(from_block, to_block)
 

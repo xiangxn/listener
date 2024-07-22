@@ -747,8 +747,8 @@ func (m *monitor) sendPrivateTransaction(ctx context.Context, signedTx *types.Tr
 		Tx:             hexutil.Encode(data),
 		MaxBlockNumber: fmt.Sprintf("0x%x", maxBlock),
 	}
-	// param.Preferences.Fast = true
-	param.Preferences.Privacy.Builders = []string{"flashbots", "beaverbuild.org", "f1b.io", "rsync", "builder0x69", "Titan", "EigenPhi", "BTCS", "JetBuilder"}
+	param.Preferences.Fast = true
+	// param.Preferences.Privacy.Builders = []string{"flashbots", "beaverbuild.org", "f1b.io", "rsync", "builder0x69", "Titan", "EigenPhi", "BTCS", "JetBuilder"}
 
 	privateKey := si.GetPrivateKey(m.GetSignKey())
 	fromAddress := si.GetAddress(privateKey)

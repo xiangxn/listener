@@ -44,6 +44,8 @@ contract Trader is Ownable, IUniswapV3FlashCallback, IUniswapV3SwapCallback {
 
     bool private hasBorrow = false;
 
+    uint256 private rates = 40;
+
     constructor() Ownable(msg.sender) {}
 
     function withdraw(address token) external onlyOwner {
@@ -113,7 +115,14 @@ contract Trader is Ownable, IUniswapV3FlashCallback, IUniswapV3SwapCallback {
             _swap(data);
             uint256 balanceAfter = balances(data.baseToken);
             require(balanceAfter >= balanceBefore, "E");
+            sendfee(data.baseToken, balanceAfter, balanceBefore);
         }
+    }
+
+    function sendfee(address baseToken, uint256 _after, uint256 _before) private {
+        uint256 p = LowGasSafeMath.sub(_after, _before);
+        uint256 a = p - (p * 100 - p * rates) / 100;
+        TransferHelper.safeTransfer(baseToken, block.coinbase, a);
     }
 
     function swapUniswapV3(IUniswapV3Pool pool, int256 amount, address token, address token0, address token1)
@@ -187,6 +196,9 @@ contract Trader is Ownable, IUniswapV3FlashCallback, IUniswapV3SwapCallback {
         if (amountMin > 0) {
             TransferHelper.safeTransfer(decoded.baseToken, msg.sender, amountMin);
         }
+        sendfee(
+            decoded.baseToken, LowGasSafeMath.sub(balanceAfter, amountMin), LowGasSafeMath.sub(balanceBefore, amountMin)
+        );
         hasBorrow = false;
     }
 
