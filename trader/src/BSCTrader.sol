@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
-import "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3FlashCallback.sol";
 import "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
 import "@uniswap/v3-core/contracts/libraries/LowGasSafeMath.sol";
 import "@uniswap/v3-core/contracts/interfaces/IERC20Minimal.sol";
@@ -11,8 +10,10 @@ import "@uniswap/v2-core/interfaces/IUniswapV2Pair.sol";
 import "@uniswap/v3-core/contracts/libraries/SafeCast.sol";
 import {CallbackValidation} from "./CallbackValidation.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import "./interfaces/IPancakeV3FlashCallback.sol";
+import "./interfaces/IPancakeV3SwapCallback.sol";
 
-contract BSCTrader is Ownable, IUniswapV3FlashCallback, IUniswapV3SwapCallback {
+contract BSCTrader is Ownable, IPancakeV3FlashCallback, IUniswapV3SwapCallback, IPancakeV3SwapCallback {
     using LowGasSafeMath for uint256;
     using SafeCast for uint256;
 
@@ -43,8 +44,6 @@ contract BSCTrader is Ownable, IUniswapV3FlashCallback, IUniswapV3SwapCallback {
     address public immutable factoryUniswapV3 = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
 
     bool private hasBorrow = false;
-
-    uint256 private rates = 40;
 
     constructor() Ownable(msg.sender) {}
 
@@ -115,14 +114,7 @@ contract BSCTrader is Ownable, IUniswapV3FlashCallback, IUniswapV3SwapCallback {
             _swap(data);
             uint256 balanceAfter = balances(data.baseToken);
             require(balanceAfter >= balanceBefore, "E");
-            sendfee(data.baseToken, balanceAfter, balanceBefore);
         }
-    }
-
-    function sendfee(address baseToken, uint256 _after, uint256 _before) private {
-        uint256 p = LowGasSafeMath.sub(_after, _before);
-        uint256 a = p - (p * 100 - p * rates) / 100;
-        TransferHelper.safeTransfer(baseToken, block.coinbase, a);
     }
 
     function swapUniswapV3(IUniswapV3Pool pool, int256 amount, address token, address token0, address token1)
@@ -185,7 +177,7 @@ contract BSCTrader is Ownable, IUniswapV3FlashCallback, IUniswapV3SwapCallback {
         }
     }
 
-    function uniswapV3FlashCallback(uint256 fee0, uint256 fee1, bytes calldata data) external override {
+    function pancakeV3FlashCallback(uint256 fee0, uint256 fee1, bytes calldata data) external override {
         SwapParamsData memory decoded = abi.decode(data, (SwapParamsData));
         require(hasBorrow && msg.sender == decoded.borrowPool, "EP");
         uint256 balanceBefore = balances(decoded.baseToken);
@@ -196,13 +188,18 @@ contract BSCTrader is Ownable, IUniswapV3FlashCallback, IUniswapV3SwapCallback {
         if (amountMin > 0) {
             TransferHelper.safeTransfer(decoded.baseToken, msg.sender, amountMin);
         }
-        sendfee(
-            decoded.baseToken, LowGasSafeMath.sub(balanceAfter, amountMin), LowGasSafeMath.sub(balanceBefore, amountMin)
-        );
         hasBorrow = false;
     }
 
     function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata _data) external override {
+        v3SwapCallback(amount0Delta, amount1Delta, _data);
+    }
+
+    function pancakeV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
+        v3SwapCallback(amount0Delta, amount1Delta, data);
+    }
+
+    function v3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata _data) private {
         require(amount0Delta > 0 || amount1Delta > 0, "S");
         SwapCallbackData memory data = abi.decode(_data, (SwapCallbackData));
         CallbackValidation.verifyCallback(factoryUniswapV3, data.tokenIn, data.tokenOut, data.fee);

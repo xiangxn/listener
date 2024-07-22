@@ -4,6 +4,7 @@ out = "trader/out"
 cache_path = "trader/cache"
 test = "trader/test"
 script = "trader/script"
+lib = "trader/lib"
 libs = ["lib"]
 optimizer = true
 optimizer_runs = 200
