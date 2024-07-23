@@ -39,23 +39,23 @@ contract ParamsTest is Test {
         callData = new CallDataC();
     }
 
-    //forge test --match-test test_swapParams -vvvv
+    // forge test --match-test test_swapParams -vvvv
     function test_swapParams() public {
-        uint256 a = 20254401; //deadline
+        uint256 a = 40725374; //deadline
         a = a << 72;
         a = a | (1 << 64); // 借token1
         a = a | (1 << 48); //buyPoolType
-        a = a | (2 << 32); //sellPoolType
-        a = a | (30 << 16); // buyPoolFee
-        a = a | uint16(25); //sellPoolFee
+        a = a | (3 << 32); //sellPoolType
+        a = a | (25 << 16); // buyPoolFee
+        a = a | uint16(30); //sellPoolFee
 
         // bytes memory sign = abi.encodeWithSignature("swap()(Trader.SwapParamsData)");
         bytes memory params = abi.encodeWithSignature(
             "swap()",
-            0x11b815efB8f581194ae79006d24E0d814B7697F6,
-            0x74C99F3f5331676f6AEc2756e1F39b4FC029a83E,
-            0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
-            0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640,
+            0x5a79FDF268b93e715160967bF56BAA36C0B78fb4,
+            0xbba8f85c3cEDdF73dB4de17D31608d640Eaea416,
+            0x55d398326f99059fF775485246999027B3197955,
+            0x8cb829111c90E0101492d5A1aa011F09614129E7,
             uint256(10000000),
             a
         );
@@ -65,11 +65,11 @@ contract ParamsTest is Test {
             abi.decode(result, (Trader.SwapParamsData, uint256, uint8));
         assertEq(success, true);
         assertEq(data.amount, 10000000);
-        assertEq(deadline, 20254401);
+        assertEq(deadline, 40725374);
         assertEq(data.buyPoolType, 1);
-        assertEq(data.sellPoolType, 2);
-        assertEq(data.buyPoolFee, 30);
-        assertEq(data.sellPoolFee, 25);
+        assertEq(data.sellPoolType, 3);
+        assertEq(data.buyPoolFee, 25);
+        assertEq(data.sellPoolFee, 30);
         assertEq(borrow, 1);
     }
 }

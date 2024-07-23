@@ -8,7 +8,7 @@ import "@uniswap/v3-core/contracts/interfaces/IERC20Minimal.sol";
 import "@uniswap/v3-core/contracts/libraries/TransferHelper.sol";
 import "@uniswap/v2-core/interfaces/IUniswapV2Pair.sol";
 import "@uniswap/v3-core/contracts/libraries/SafeCast.sol";
-import {CallbackValidation} from "./CallbackValidation.sol";
+import {CallbackValidation} from "./PancakeCV.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import "pancake-v3-contracts/v3-core/contracts/interfaces/callback/IPancakeV3FlashCallback.sol";
 import "pancake-v3-contracts/v3-core/contracts/interfaces/callback/IPancakeV3SwapCallback.sol";
@@ -49,7 +49,7 @@ contract BSCTrader is
     /// @dev The maximum value that can be returned from #getSqrtRatioAtTick. Equivalent to getSqrtRatioAtTick(MAX_TICK)
     uint160 internal constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970342;
 
-    address public immutable factoryUniswapV3 = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+    address public immutable factorypancakeV3 = 0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9;
 
     bool private hasBorrow = false;
 
@@ -214,7 +214,7 @@ contract BSCTrader is
     function v3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata _data) private {
         require(amount0Delta > 0 || amount1Delta > 0, "S");
         SwapCallbackData memory data = abi.decode(_data, (SwapCallbackData));
-        CallbackValidation.verifyCallback(factoryUniswapV3, data.tokenIn, data.tokenOut, data.fee);
+        CallbackValidation.verifyCallback(factorypancakeV3, data.tokenIn, data.tokenOut, data.fee);
 
         (bool isExactInput, uint256 amountToPay) = amount0Delta > 0
             ? (data.tokenIn < data.tokenOut, uint256(amount0Delta))
