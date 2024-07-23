@@ -12,6 +12,7 @@ import {CallbackValidation} from "./CallbackValidation.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import "pancake-v3-contracts/v3-core/contracts/interfaces/callback/IPancakeV3FlashCallback.sol";
 import "pancake-v3-contracts/v3-core/contracts/interfaces/callback/IPancakeV3SwapCallback.sol";
+import "pancake-v3-contracts/v3-core/contracts/interfaces/IPancakeV3Pool.sol";
 import "./interfaces/IAlgebraSwapCallback.sol";
 
 contract BSCTrader is

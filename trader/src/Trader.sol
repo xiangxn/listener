@@ -211,7 +211,7 @@ contract Trader is
         hasBorrow = false;
     }
 
-    function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata _data) external override {
+    function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
         v3SwapCallback(amount0Delta, amount1Delta, data);
     }
 
