@@ -42,7 +42,7 @@ const MAX_TICK = 887272
 // Create a big.Float with the value 2^96
 var Q96 = new(big.Int).Lsh(big.NewInt(1), 96)
 
-func (d *UniswapV3) GetType() uint8      { return 1 }
+func (d *UniswapV3) GetType() uint8      { return 2 }
 func (d *UniswapV3) PriceCallCount() int { return 4 }
 
 func (u *UniswapV3) CreatePriceCall(pool *dt.Pool) (calls []*multicall.Call) {

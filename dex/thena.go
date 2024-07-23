@@ -30,11 +30,12 @@ type GlobalState struct {
 	Unlocked           bool
 }
 
+// algebra
 type Thena struct {
 	Dex
 }
 
-func (d *Thena) GetType() uint8      { return 1 }
+func (d *Thena) GetType() uint8      { return 4 }
 func (d *Thena) PriceCallCount() int { return 3 }
 
 func (u *Thena) CreatePriceCall(pool *dt.Pool) (calls []*multicall.Call) {

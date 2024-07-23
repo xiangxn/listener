@@ -95,7 +95,7 @@ type Dex struct {
 func (d *Dex) GetName() string       { return d.Name }
 func (d *Dex) GetTopic() common.Hash { return d.Topic }
 func (d *Dex) GetAbi() *abi.ABI      { return d.Abi }
-func (d *Dex) GetType() uint8        { return 2 }
+func (d *Dex) GetType() uint8        { return 1 }
 func (d *Dex) SavePair(pool *dt.Pool, price *big.Float, reserve0, reserve1, blockNumber *big.Int, fee float64) dt.Pair {
 	db := d.monitor.DB()
 	return db.SavePair(pool, price, reserve0, reserve1, blockNumber, fee, d.GetName())

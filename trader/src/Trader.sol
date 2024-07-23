@@ -11,8 +11,16 @@ import "@uniswap/v2-core/interfaces/IUniswapV2Pair.sol";
 import "@uniswap/v3-core/contracts/libraries/SafeCast.sol";
 import {CallbackValidation} from "./CallbackValidation.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import "pancake-v3-contracts/v3-core/contracts/interfaces/callback/IPancakeV3SwapCallback.sol";
+import "./interfaces/ISolidlyV3SwapCallback.sol";
 
-contract Trader is Ownable, IUniswapV3FlashCallback, IUniswapV3SwapCallback {
+contract Trader is
+    Ownable,
+    IUniswapV3FlashCallback,
+    IUniswapV3SwapCallback,
+    ISolidlyV3SwapCallback,
+    IPancakeV3SwapCallback
+{
     using LowGasSafeMath for uint256;
     using SafeCast for uint256;
 
@@ -23,7 +31,8 @@ contract Trader is Ownable, IUniswapV3FlashCallback, IUniswapV3SwapCallback {
         address baseToken;
         address borrowPool;
         uint256 amount;
-        uint16 buyPoolType; //池类型：1是UniswapV3,2是UniswapV2
+        // 池类型：1是UniswapV2,2是UniswapV3,3是PancakeV3,4是Algebra,5是SolidlyV3
+        uint16 buyPoolType;
         uint16 sellPoolType;
         uint16 buyPoolFee; //1e4
         uint16 sellPoolFee; //1e4
@@ -158,30 +167,30 @@ contract Trader is Ownable, IUniswapV3FlashCallback, IUniswapV3SwapCallback {
     }
 
     function _swap(SwapParamsData memory data) private {
-        // 先在sellPool卖出baseToken
+        // 先在sellPool卖出baseTokena
         uint256 amountOut;
         if (data.sellPoolType == 1) {
+            IUniswapV2Pair pool = IUniswapV2Pair(data.sellPool);
+            address token0 = pool.token0();
+            amountOut = swapUniswapV2(pool, data.amount, data.baseToken, token0, data.sellPoolFee);
+        } else {
             IUniswapV3Pool pool = IUniswapV3Pool(data.sellPool);
             address token0 = pool.token0();
             address token1 = pool.token1();
             amountOut = swapUniswapV3(pool, data.amount.toInt256(), data.baseToken, token0, token1);
-        } else if (data.sellPoolType == 2) {
-            IUniswapV2Pair pool = IUniswapV2Pair(data.sellPool);
-            address token0 = pool.token0();
-            amountOut = swapUniswapV2(pool, data.amount, data.baseToken, token0, data.sellPoolFee);
         }
 
         //然后在buyPool买入baseToken
         if (data.buyPoolType == 1) {
-            IUniswapV3Pool pool = IUniswapV3Pool(data.buyPool);
-            address token0 = pool.token0();
-            address token1 = pool.token1();
-            swapUniswapV3(pool, amountOut.toInt256(), data.baseToken == token0 ? token1 : token0, token0, token1);
-        } else if (data.buyPoolType == 2) {
             IUniswapV2Pair pool = IUniswapV2Pair(data.buyPool);
             address token0 = pool.token0();
             address token1 = pool.token1();
             swapUniswapV2(pool, amountOut, data.baseToken == token0 ? token1 : token0, token0, data.buyPoolFee);
+        } else {
+            IUniswapV3Pool pool = IUniswapV3Pool(data.buyPool);
+            address token0 = pool.token0();
+            address token1 = pool.token1();
+            swapUniswapV3(pool, amountOut.toInt256(), data.baseToken == token0 ? token1 : token0, token0, token1);
         }
     }
 
@@ -203,6 +212,18 @@ contract Trader is Ownable, IUniswapV3FlashCallback, IUniswapV3SwapCallback {
     }
 
     function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata _data) external override {
+        v3SwapCallback(amount0Delta, amount1Delta, data);
+    }
+
+    function pancakeV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
+        v3SwapCallback(amount0Delta, amount1Delta, data);
+    }
+
+    function solidlyV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
+        v3SwapCallback(amount0Delta, amount1Delta, data);
+    }
+
+    function v3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata _data) private {
         require(amount0Delta > 0 || amount1Delta > 0, "S");
         SwapCallbackData memory data = abi.decode(_data, (SwapCallbackData));
         CallbackValidation.verifyCallback(factoryUniswapV3, data.tokenIn, data.tokenOut, data.fee);

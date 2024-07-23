@@ -36,7 +36,7 @@ type PancakeV3 struct {
 	Dex
 }
 
-func (d *PancakeV3) GetType() uint8      { return 1 }
+func (d *PancakeV3) GetType() uint8      { return 3 }
 func (d *PancakeV3) PriceCallCount() int { return 4 }
 
 func (u *PancakeV3) CreatePriceCall(pool *dt.Pool) (calls []*multicall.Call) {

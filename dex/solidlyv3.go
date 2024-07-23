@@ -21,7 +21,7 @@ type SolidlySlot0 struct {
 	Unlocked     bool
 }
 
-func (d *SolidlyV3) GetType() uint8      { return 1 }
+func (d *SolidlyV3) GetType() uint8      { return 5 }
 func (d *SolidlyV3) PriceCallCount() int { return 3 }
 
 func (u *SolidlyV3) CreatePriceCall(pool *dt.Pool) (calls []*multicall.Call) {

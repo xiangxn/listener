@@ -23,7 +23,7 @@ type Aerodrome struct {
 	Dex
 }
 
-func (d *Aerodrome) GetType() uint8      { return 1 }
+func (d *Aerodrome) GetType() uint8      { return 2 }
 func (d *Aerodrome) PriceCallCount() int { return 4 }
 
 func (u *Aerodrome) CreatePriceCall(pool *dt.Pool) (calls []*multicall.Call) {

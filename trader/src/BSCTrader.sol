@@ -12,9 +12,15 @@ import {CallbackValidation} from "./CallbackValidation.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import "pancake-v3-contracts/v3-core/contracts/interfaces/callback/IPancakeV3FlashCallback.sol";
 import "pancake-v3-contracts/v3-core/contracts/interfaces/callback/IPancakeV3SwapCallback.sol";
-import "pancake-v3-contracts/v3-core/contracts/interfaces/IPancakeV3Pool.sol";
+import "./interfaces/IAlgebraSwapCallback.sol";
 
-contract BSCTrader is Ownable, IPancakeV3FlashCallback, IUniswapV3SwapCallback, IPancakeV3SwapCallback {
+contract BSCTrader is
+    Ownable,
+    IPancakeV3FlashCallback,
+    IUniswapV3SwapCallback,
+    IPancakeV3SwapCallback,
+    IAlgebraSwapCallback
+{
     using LowGasSafeMath for uint256;
     using SafeCast for uint256;
 
@@ -25,7 +31,7 @@ contract BSCTrader is Ownable, IPancakeV3FlashCallback, IUniswapV3SwapCallback, 
         address baseToken;
         address borrowPool;
         uint256 amount;
-        uint16 buyPoolType; //池类型：1是UniswapV3,2是UniswapV2
+        uint16 buyPoolType; //池类型：1是UniswapV2,2是UniswapV3,3是PancakeV3,4是Algebra,5是SolidlyV3
         uint16 sellPoolType;
         uint16 buyPoolFee; //1e4
         uint16 sellPoolFee; //1e4
@@ -118,26 +124,6 @@ contract BSCTrader is Ownable, IPancakeV3FlashCallback, IUniswapV3SwapCallback, 
         }
     }
 
-    function swapPancakeV3(IPancakeV3Pool pool, int256 amount, address token, address token0, address token1)
-        private
-        returns (uint256 amountOut)
-    {
-        (int256 amount0, int256 amount1) = pool.swap(
-            address(this),
-            token == token0,
-            amount,
-            (token == token0 ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1),
-            abi.encode(
-                SwapCallbackData({
-                    tokenIn: token == token0 ? token0 : token1,
-                    tokenOut: token == token0 ? token1 : token0,
-                    fee: pool.fee()
-                })
-            )
-        );
-        amountOut = uint256(-(token == token0 ? amount1 : amount0));
-    }
-
     function swapUniswapV3(IUniswapV3Pool pool, int256 amount, address token, address token0, address token1)
         private
         returns (uint256 amountOut)
@@ -174,37 +160,27 @@ contract BSCTrader is Ownable, IPancakeV3FlashCallback, IUniswapV3SwapCallback, 
         // 先在sellPool卖出baseTokena
         uint256 amountOut;
         if (data.sellPoolType == 1) {
+            IUniswapV2Pair pool = IUniswapV2Pair(data.sellPool);
+            address token0 = pool.token0();
+            amountOut = swapUniswapV2(pool, data.amount, data.baseToken, token0, data.sellPoolFee);
+        } else {
             IUniswapV3Pool pool = IUniswapV3Pool(data.sellPool);
             address token0 = pool.token0();
             address token1 = pool.token1();
             amountOut = swapUniswapV3(pool, data.amount.toInt256(), data.baseToken, token0, token1);
-        } else if (data.sellPoolType == 2) {
-            IUniswapV2Pair pool = IUniswapV2Pair(data.sellPool);
-            address token0 = pool.token0();
-            amountOut = swapUniswapV2(pool, data.amount, data.baseToken, token0, data.sellPoolFee);
-        } else if (data.sellPoolType == 3) {
-            IPancakeV3Pool pool = IPancakeV3Pool(data.sellPool);
-            address token0 = pool.token0();
-            address token1 = pool.token1();
-            amountOut = swapPancakeV3(pool, data.amount.toInt256(), data.baseToken, token0, token1);
         }
 
         //然后在buyPool买入baseToken
         if (data.buyPoolType == 1) {
-            IUniswapV3Pool pool = IUniswapV3Pool(data.buyPool);
-            address token0 = pool.token0();
-            address token1 = pool.token1();
-            swapUniswapV3(pool, amountOut.toInt256(), data.baseToken == token0 ? token1 : token0, token0, token1);
-        } else if (data.buyPoolType == 2) {
             IUniswapV2Pair pool = IUniswapV2Pair(data.buyPool);
             address token0 = pool.token0();
             address token1 = pool.token1();
             swapUniswapV2(pool, amountOut, data.baseToken == token0 ? token1 : token0, token0, data.buyPoolFee);
-        } else if (data.buyPoolType == 3) {
-            IPancakeV3Pool pool = IPancakeV3Pool(data.buyPool);
+        } else {
+            IUniswapV3Pool pool = IUniswapV3Pool(data.buyPool);
             address token0 = pool.token0();
             address token1 = pool.token1();
-            swapPancakeV3(pool, amountOut.toInt256(), data.baseToken == token0 ? token1 : token0, token0, token1);
+            swapUniswapV3(pool, amountOut.toInt256(), data.baseToken == token0 ? token1 : token0, token0, token1);
         }
     }
 
@@ -222,11 +198,15 @@ contract BSCTrader is Ownable, IPancakeV3FlashCallback, IUniswapV3SwapCallback, 
         hasBorrow = false;
     }
 
-    function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata _data) external override {
-        v3SwapCallback(amount0Delta, amount1Delta, _data);
+    function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
+        v3SwapCallback(amount0Delta, amount1Delta, data);
     }
 
     function pancakeV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
+        v3SwapCallback(amount0Delta, amount1Delta, data);
+    }
+
+    function algebraSwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
         v3SwapCallback(amount0Delta, amount1Delta, data);
     }
 

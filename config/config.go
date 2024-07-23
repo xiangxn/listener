@@ -13,7 +13,7 @@ type DexConfig struct {
 	Event   string  `json:"event" yaml:"event"`
 	Topic   string  `json:"topic" yaml:"topic"`
 	Factory string  `json:"factory" yaml:"factory"`
-	Fee     float64 `json:"fee" yaml:"fee"`
+	Fee     float64 `json:"fee,omitempty" yaml:"fee,omitempty"`
 }
 
 type TGConfig struct {
@@ -61,16 +61,16 @@ type Configuration struct {
 	ChunkLength int `json:"chunk_length" yaml:"chunk_length"`
 	// 最大并发数据
 	MaxConcurrent int `json:"max_concurrent" yaml:"max_concurrent"`
-	// 是否开起高度
-	Debug bool `json:"debug" yaml:"debug"`
-	// 受支持的交易对
-	Dexs []DexConfig `json:"dexs" yaml:"dexs"`
 	// 最小收益,以USD计算
 	MinProfitUSD float64 `json:"min_profit_usd" yaml:"min_profit_usd"`
 	// 为参与交易的basetoken设置倍数
 	DeltaCoefficient float64 `json:"delta_coefficient" yaml:"delta_coefficient"`
 	// TG消息服务配置
 	TG TGConfig `json:"tg" yaml:"tg"`
+	// 是否开起高度
+	Debug bool `json:"debug" yaml:"debug"`
+	// 受支持的交易对
+	Dexs []DexConfig `json:"dexs" yaml:"dexs"`
 }
 
 func GetConfig(fileName string) (conf Configuration) {
