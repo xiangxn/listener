@@ -132,23 +132,20 @@ func (m *MovingBrick) CalcArbitrage(monitor dt.IMonitor, event types.Log, pool *
 	amount, profit, avgPrice := m.calcArbitrage(monitor, sellPool, buyPool)
 	if profit > 0 {
 		var profitUSD float64
-		var gasUSD float64
-
 		conf := monitor.Config().Strategies.GasToken
 		gasUSDPrice := monitor.DB().GetBasePrice(conf.Base, conf.Quote)
 		gas := monitor.GetUseGas(buyPool, sellPool, amount)
+		gasUSD := float64(gas) * gasPrice / gasUSDPrice
 		borrow, position := m.getBorrowPool(buyPool, sellPool, baseToken)
+
 		if baseToken == conf.Base {
-			profitUSD = profit * avgPrice
-			gasUSD = float64(gas) * gasPrice * gasUSDPrice
+			profitUSD = profit / avgPrice // avgPrice表示: 1 quote = N base
 		} else if m.isUSD(baseToken) {
-			profitUSD = profit / avgPrice
-			gasUSD = float64(gas) * gasPrice / gasUSDPrice
+			profitUSD = profit
 		} else {
-			// 报价token相对于QuoteToken的价格
-			quotePrice := gasUSDPrice / avgPrice
-			profitUSD = quotePrice * profit
-			gasUSD = float64(gas) * gasPrice * gasUSDPrice
+			// 报价basetoken相对于USD的价格
+			basePrice := monitor.DB().GetBasePrice(baseToken, conf.Quote) // basePrice表示: 1 base = N quote
+			profitUSD = profit * basePrice
 		}
 		profitUSD -= gasUSD
 		if profitUSD < monitor.Config().MinProfitUSD {
