@@ -31,7 +31,7 @@ func main() {
 			conf = config.GetConfig(configFile)
 		},
 	}
-	rootCmd.PersistentFlags().StringP("config", "c", "config.json", "Configuration file name")
+	rootCmd.PersistentFlags().StringP("config", "c", "config.yaml", "Configuration file name")
 
 	var arbCmd = &cobra.Command{
 		Use:   "arb",
