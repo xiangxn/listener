@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strings"
 
 	"github.com/elliotchance/pie/v2"
 	"github.com/ethereum/go-ethereum/common"
@@ -12,27 +13,6 @@ import (
 	"github.com/xiangxn/go-multicall"
 	dt "github.com/xiangxn/listener/types"
 )
-
-var BaseTokens = []string{
-	// WETH
-	"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
-	// USDC
-	"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-	// USDT
-	"0xdAC17F958D2ee523a2206206994597C13D831ec7"}
-
-const (
-	// USD
-	USDCUSDT = "0x3416cF6C708Da44DB2624D63ea0AAef7113527C6"
-	DAIUSDT  = "0x48DA0965ab2d2cbf1C17C09cFB5Cbe67Ad5B1406"
-	DAIUSDC  = "0x5777d92f208679DB4b9778590Fa3CAB3aC9e2168"
-
-	//ETH
-	ETHUSDT = "0x11b815efB8f581194ae79006d24E0d814B7697F6"
-	USDCETH = "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"
-)
-
-var BorrowPools = []string{USDCUSDT, DAIUSDT, DAIUSDC, ETHUSDT, USDCETH}
 
 type MovingBrick struct {
 	baseTokens  map[string]dt.Token
@@ -97,46 +77,17 @@ func (m *MovingBrick) getBorrowPool(buyPool, sellPool *dt.Pair, baseToken string
 }
 
 func (m *MovingBrick) isUSD(token string) bool {
-	return token == BaseTokens[1] || token == BaseTokens[2]
+	return strings.Contains(m.baseTokens[token].Symbol, "USD")
 }
 
 func (m *MovingBrick) GetBaseToken(token0, token1 string) string {
-	if pie.Contains(BaseTokens, token0) {
+	keys := pie.Keys(m.baseTokens)
+	if pie.Contains(keys, token0) {
 		return token0
-	} else if pie.Contains(BaseTokens, token1) {
+	} else if pie.Contains(keys, token1) {
 		return token1
 	}
 	return ""
-}
-
-// 获取基础token报价的平均价格,默认:ETH/USDC
-func (m *MovingBrick) GetBasePrice(monitor dt.IMonitor, baseToken string) (price float64) {
-	var quoteToken string
-	if baseToken == BaseTokens[0] { // 如果baseToken是ETH, quoteToken则用USDC
-		quoteToken = BaseTokens[1]
-	} else { // 如果baseToken是USDC或USDT, quoteToken则用ETH
-		quoteToken = BaseTokens[0]
-	}
-	data := monitor.DB().GetPairsByTokens([]string{baseToken, quoteToken})
-	if len(data) < 1 {
-		return
-	}
-	var total float64
-	// 对齐交易对中的币种
-	data = pie.Each(data, func(p *dt.Pair) {
-		if p.Token0 != baseToken {
-			tmpT := p.Token0
-			p.Token0 = p.Token1
-			p.Token1 = tmpT
-			tmpR := p.Reserve0
-			p.Reserve0 = p.Reserve1
-			p.Reserve1 = tmpR
-			p.Price = 1 / p.Price
-		}
-		total += p.Price
-	})
-	price = total / float64(len(data))
-	return
 }
 
 func (m *MovingBrick) CalcArbitrage(monitor dt.IMonitor, event types.Log, pool *dt.Pool, gasPrice float64) (arbitrage *dt.Arbitrage, ok bool) {
@@ -182,19 +133,22 @@ func (m *MovingBrick) CalcArbitrage(monitor dt.IMonitor, event types.Log, pool *
 	if profit > 0 {
 		var profitUSD float64
 		var gasUSD float64
-		// ETH/USDC的平均价格,如果baseToken是ETH时价格表示为ETH/USDC,如果是USDC时价格表示为USDC/ETH
-		avgBasePrice := m.GetBasePrice(monitor, baseToken)
+
+		conf := monitor.Config().Strategies.GasToken
+		gasUSDPrice := monitor.DB().GetBasePrice(conf.Base, conf.Quote)
 		gas := monitor.GetUseGas(buyPool, sellPool, amount)
 		borrow, position := m.getBorrowPool(buyPool, sellPool, baseToken)
-		if m.isUSD(baseToken) {
+		if baseToken == conf.Base {
+			profitUSD = profit * avgPrice
+			gasUSD = float64(gas) * gasPrice * gasUSDPrice
+		} else if m.isUSD(baseToken) {
 			profitUSD = profit / avgPrice
-
-			gasUSD = float64(gas) * gasPrice / avgBasePrice
+			gasUSD = float64(gas) * gasPrice / gasUSDPrice
 		} else {
 			// 报价token相对于QuoteToken的价格
-			quotePrice := avgBasePrice / avgPrice
+			quotePrice := gasUSDPrice / avgPrice
 			profitUSD = quotePrice * profit
-			gasUSD = float64(gas) * gasPrice * avgBasePrice
+			gasUSD = float64(gas) * gasPrice * gasUSDPrice
 		}
 		profitUSD -= gasUSD
 		if profitUSD < monitor.Config().MinProfitUSD {

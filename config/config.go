@@ -36,7 +36,13 @@ type Configuration struct {
 		// 用于模拟交易时给测试地址支持gas基础token
 		Funds string `json:"funds" yaml:"funds"`
 	} `json:"simulation" yaml:"simulation"`
+	// 策略相关配置
 	Strategies struct {
+		// 用于表示gas相对于USD的价格
+		GasToken struct {
+			Base  string `json:"base" yaml:"base"`
+			Quote string `json:"quote" yaml:"quote"`
+		} `json:"gas_token" yaml:"gas_token"`
 		// 配置要使用的base token, 键为base token的地址，值为可以借贷basetoken的交易池
 		BaseTokens map[string][]string `json:"base_tokens" yaml:"base_tokens"`
 	} `json:"strategies" yaml:"strategies"`

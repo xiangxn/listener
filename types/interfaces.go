@@ -36,6 +36,8 @@ type IActions interface {
 
 	//查询Transacttion
 	SearchTransacttion(simulation bool, start time.Time, end time.Time) (txs []Transaction)
+	//获取指定baseToken的平均价格
+	GetBasePrice(baseToken, quoteToken string) (price float64)
 }
 
 type IMonitor interface {

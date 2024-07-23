@@ -12,7 +12,7 @@
             "program": "${workspaceFolder}/main.go",
             "args": [
                 "-c",
-                "bsc.config.json",
+                "bsc.config.yaml",
                 "arb"
             ],
             "env": {},

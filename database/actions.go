@@ -453,3 +453,26 @@ func (a Actions) SearchTransacttion(simulation bool, start time.Time, end time.T
 	}
 	return
 }
+
+func (a Actions) GetBasePrice(baseToken, quoteToken string) (price float64) {
+	data := a.GetPairsByTokens([]string{baseToken, quoteToken})
+	if len(data) < 1 {
+		return
+	}
+	var total float64
+	// 对齐交易对中的币种
+	data = pie.Each(data, func(p *dt.Pair) {
+		if p.Token0 != baseToken {
+			tmpT := p.Token0
+			p.Token0 = p.Token1
+			p.Token1 = tmpT
+			tmpR := p.Reserve0
+			p.Reserve0 = p.Reserve1
+			p.Reserve1 = tmpR
+			p.Price = 1 / p.Price
+		}
+		total += p.Price
+	})
+	price = total / float64(len(data))
+	return
+}

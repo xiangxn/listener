@@ -4,58 +4,53 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/elliotchance/pie/v2"
 	"github.com/sirupsen/logrus"
 	"github.com/xiangxn/listener/config"
 	"github.com/xiangxn/listener/database"
-	"github.com/xiangxn/listener/strategies"
 	dt "github.com/xiangxn/listener/types"
 )
 
 type Stats struct {
-	DB dt.IActions
+	DB         dt.IActions
+	Conf       config.Configuration
+	baseTokens map[string]dt.Token
 }
 
-func New(conf config.Configuration) *Stats {
+func New(conf config.Configuration) (stats *Stats) {
 	l := logrus.New()
 	l.SetFormatter(&logrus.TextFormatter{FullTimestamp: true})
 	if conf.Debug {
 		l.Level = logrus.DebugLevel
 	}
-	return &Stats{
+	stats = &Stats{
+		Conf: conf,
 		DB: &database.Actions{
 			DB:     database.GetClient(conf).Database(fmt.Sprintf("%slistener", conf.NetName)),
 			Mctx:   context.Background(),
 			Logger: l,
 		},
 	}
+	stats.init()
+	return
 }
 
-func (s *Stats) getETHPrice() (price float64) {
-	baseToken := strategies.BaseTokens[0]
-	quoteToken := strategies.BaseTokens[1]
-	data := s.DB.GetPairsByTokens([]string{baseToken, quoteToken})
-	if len(data) < 1 {
-		return
+func (s *Stats) init() {
+	if len(s.baseTokens) == 0 {
+		s.baseTokens = make(map[string]dt.Token)
 	}
-	var total float64
-	// 对齐交易对中的币种
-	data = pie.Each(data, func(p *dt.Pair) {
-		if p.Token0 != baseToken {
-			tmpT := p.Token0
-			p.Token0 = p.Token1
-			p.Token1 = tmpT
-			tmpR := p.Reserve0
-			p.Reserve0 = p.Reserve1
-			p.Reserve1 = tmpR
-			p.Price = 1 / p.Price
-		}
-		total += p.Price
-	})
-	price = total / float64(len(data))
-	return
+	baseTokens := pie.Keys(s.Conf.Strategies.BaseTokens)
+	ts := s.DB.GetTokens(baseTokens)
+	for _, t := range ts {
+		s.baseTokens[t.Address] = t
+	}
+}
+
+func (s *Stats) isUSD(token string) bool {
+	return strings.Contains(s.baseTokens[token].Symbol, "USD")
 }
 
 func (s *Stats) SearchTransacttion(simulation bool, start time.Time, end time.Time) {
@@ -89,19 +84,23 @@ func (s *Stats) SearchTransacttion(simulation bool, start time.Time, end time.Ti
 		fmt.Println("还没有数据!")
 		return
 	}
-	ethPrice := s.getETHPrice()
+	gasPrice := s.DB.GetBasePrice(s.Conf.Strategies.GasToken.Base, s.Conf.Strategies.GasToken.Quote)
 	fmt.Println("\n================统计结果================")
 	fmt.Printf("时间从[%s]到[%s]\n", start.Format(time.DateTime), end.Format(time.DateTime))
 	for key, amount := range coins {
 		fmt.Printf("\t%s: %.8f\n", key, amount)
-		if key == strategies.BaseTokens[0] { //amount为ETH
-			income += ethPrice * amount
-		} else { //amount为USD
+		if key == s.Conf.Strategies.GasToken.Base { //amount为与gas一样的token
+			income += gasPrice * amount
+		} else if s.isUSD(key) { //amount为USD
 			income += amount
+		} else {
+			basePrice := s.DB.GetBasePrice(key, s.Conf.Strategies.GasToken.Quote)
+			quotePrice := gasPrice / basePrice
+			income += quotePrice * amount
 		}
 	}
 	totalGas := float64(gas) / math.Pow(10, 18)
-	totalGas = totalGas * ethPrice
+	totalGas = totalGas * gasPrice
 	fmt.Printf("消耗金额: %.8f\n", totalGas)
 	fmt.Printf("毛利金额: %.8f\n", income)
 	fmt.Printf("净利金额: %.8f\n", income-totalGas)
