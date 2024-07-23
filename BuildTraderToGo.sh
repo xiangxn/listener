@@ -9,6 +9,9 @@ forge build
 GOPATH=~/go/bin
 # 合约名称
 CONTRACT_NAME="Trader"
+if [ $# -gt 0 ]; then
+    CONTRACT_NAME=$1
+fi
 CONTRACT_JSON="trader/out/${CONTRACT_NAME}.sol/${CONTRACT_NAME}.json"
 
 # 检查文件是否存在
@@ -26,6 +29,6 @@ BYTECODE=$(jq -r '.bytecode.object' "$CONTRACT_JSON")
 echo "$BYTECODE" > "${CONTRACT_NAME}.bin"
 
 # 使用abigen生成Go文件
-$GOPATH/abigen --abi="${CONTRACT_NAME}.abi" --bin="${CONTRACT_NAME}.bin" --pkg=trader --out="trader/${CONTRACT_NAME}.go"
+$GOPATH/abigen --abi="${CONTRACT_NAME}.abi" --bin="${CONTRACT_NAME}.bin" --pkg=trader --out="trader/Trader.go"
 
 echo "Go binding file ${CONTRACT_NAME}.go has been generated."
