@@ -19,3 +19,6 @@
 [submodule "trader/lib/pancake-v3-contracts"]
 	path = trader/lib/pancake-v3-contracts
 	url = https://github.com/pancakeswap/pancake-v3-contracts
+[submodule "trader/lib/Algebra"]
+	path = trader/lib/Algebra
+	url = https://github.com/cryptoalgebra/Algebra
