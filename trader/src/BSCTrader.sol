@@ -9,6 +9,7 @@ import "@uniswap/v3-core/contracts/libraries/TransferHelper.sol";
 import "@uniswap/v2-core/interfaces/IUniswapV2Pair.sol";
 import "@uniswap/v3-core/contracts/libraries/SafeCast.sol";
 import {CallbackValidation} from "./PancakeCV.sol";
+import {AlgebraCV} from "./AlgebraCV.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import "pancake-v3-contracts/v3-core/contracts/interfaces/callback/IPancakeV3FlashCallback.sol";
 import "pancake-v3-contracts/v3-core/contracts/interfaces/callback/IPancakeV3SwapCallback.sol";
@@ -125,24 +126,23 @@ contract BSCTrader is
         }
     }
 
-    function swapUniswapV3(IUniswapV3Pool pool, int256 amount, address token, address token0, address token1)
+    function swapUniswapV3(IUniswapV3Pool pool, int256 amount, address token, address token0, address token1, uint16 _t)
         private
         returns (uint256 amountOut)
     {
+        uint24 fee = 0;
+        if (_t == 4) fee = 0;
+        else fee = pool.fee();
+
+        bool tt = token == token0;
         (int256 amount0, int256 amount1) = pool.swap(
             address(this),
-            token == token0,
+            tt,
             amount,
-            (token == token0 ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1),
-            abi.encode(
-                SwapCallbackData({
-                    tokenIn: token == token0 ? token0 : token1,
-                    tokenOut: token == token0 ? token1 : token0,
-                    fee: pool.fee()
-                })
-            )
+            (tt ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1),
+            abi.encode(SwapCallbackData({tokenIn: tt ? token0 : token1, tokenOut: tt ? token1 : token0, fee: fee}))
         );
-        amountOut = uint256(-(token == token0 ? amount1 : amount0));
+        amountOut = uint256(-(tt ? amount1 : amount0));
     }
 
     function swapUniswapV2(IUniswapV2Pair pool, uint256 amount, address token, address token0, uint16 fee)
@@ -168,7 +168,7 @@ contract BSCTrader is
             IUniswapV3Pool pool = IUniswapV3Pool(data.sellPool);
             address token0 = pool.token0();
             address token1 = pool.token1();
-            amountOut = swapUniswapV3(pool, data.amount.toInt256(), data.baseToken, token0, token1);
+            amountOut = swapUniswapV3(pool, data.amount.toInt256(), data.baseToken, token0, token1, data.sellPoolType);
         }
 
         //然后在buyPool买入baseToken
@@ -181,7 +181,9 @@ contract BSCTrader is
             IUniswapV3Pool pool = IUniswapV3Pool(data.buyPool);
             address token0 = pool.token0();
             address token1 = pool.token1();
-            swapUniswapV3(pool, amountOut.toInt256(), data.baseToken == token0 ? token1 : token0, token0, token1);
+            swapUniswapV3(
+                pool, amountOut.toInt256(), data.baseToken == token0 ? token1 : token0, token0, token1, data.buyPoolType
+            );
         }
     }
 
@@ -200,21 +202,25 @@ contract BSCTrader is
     }
 
     function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
-        v3SwapCallback(amount0Delta, amount1Delta, data);
+        v3SwapCallback(amount0Delta, amount1Delta, data, 2);
     }
 
     function pancakeV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
-        v3SwapCallback(amount0Delta, amount1Delta, data);
+        v3SwapCallback(amount0Delta, amount1Delta, data, 3);
     }
 
     function algebraSwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
-        v3SwapCallback(amount0Delta, amount1Delta, data);
+        v3SwapCallback(amount0Delta, amount1Delta, data, 4);
     }
 
-    function v3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata _data) private {
+    function v3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata _data, uint16 _t) private {
         require(amount0Delta > 0 || amount1Delta > 0, "S");
         SwapCallbackData memory data = abi.decode(_data, (SwapCallbackData));
-        CallbackValidation.verifyCallback(factorypancakeV3, data.tokenIn, data.tokenOut, data.fee);
+        if (_t == 4) {
+            AlgebraCV.verifyCallback(address(0xc89F69Baa3ff17a842AB2DE89E5Fc8a8e2cc7358), data.tokenIn, data.tokenOut);
+        } else {
+            CallbackValidation.verifyCallback(factorypancakeV3, data.tokenIn, data.tokenOut, data.fee);
+        }
 
         (bool isExactInput, uint256 amountToPay) = amount0Delta > 0
             ? (data.tokenIn < data.tokenOut, uint256(amount0Delta))

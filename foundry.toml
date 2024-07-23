@@ -13,7 +13,8 @@ remappings = [
 "@uniswap/v3-core/=trader/lib/v3-core/",
 "@uniswap/v3-periphery/=trader/lib/v3-periphery/contracts/",
 "@openzeppelin/contracts/=trader/lib/openzeppelin-contracts/contracts/",
-"pancake-v3-contracts/=trader/lib/pancake-v3-contracts/projects/"
+"pancake-v3-contracts/=trader/lib/pancake-v3-contracts/projects/",
+"@cryptoalgebra/=trader/lib/Algebra/src/"
 ]
 
 [rpc_endpoints]
