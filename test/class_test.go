@@ -12,7 +12,7 @@ import (
 )
 
 func TestClass(t *testing.T) {
-	cfg := config.GetConfig("../config.json")
+	cfg := config.GetConfig("../config.yaml")
 	db := database.GetClient(cfg).Database(fmt.Sprintf("%slistener", cfg.NetName))
 	ctx := context.Background()
 	var data dt.Pairs

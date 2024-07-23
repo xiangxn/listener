@@ -22,3 +22,4 @@ docs/
 databackup
 broadcast
 *config.json
+*config.yaml

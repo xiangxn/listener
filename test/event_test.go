@@ -24,7 +24,7 @@ func TestEvent(t *testing.T) {
 		BlockNumber: 20259344,
 	}
 
-	cfg := config.GetConfig("../config.json")
+	cfg := config.GetConfig("../config.yaml")
 	// fmt.Println(cfg)
 
 	l := logrus.New()

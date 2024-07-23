@@ -12,7 +12,7 @@ import (
 
 // go test -v -run ^TestDB$ github.com/xiangxn/listener/test
 func TestDB(t *testing.T) {
-	cfg := config.GetConfig("../config.json")
+	cfg := config.GetConfig("../config.yaml")
 	db := database.GetClient(cfg).Database(fmt.Sprintf("%slistener", cfg.NetName))
 	ctx := context.Background()
 
