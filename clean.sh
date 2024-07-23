@@ -13,8 +13,8 @@ delfile(){
 
 echo "Clear Temporary Files..."
 delfile ./listener
-delfile ./Trader.abi
-delfile ./Trader.bin
+delfile ./*.abi
+delfile ./*.bin
 delfile ./trader/Trader.go
 delfile ./databackup 1
 
