@@ -19,10 +19,10 @@ func TestEvent(t *testing.T) {
 		panic(err)
 	}
 
-	cfg := config.GetConfig("../config.yaml")
+	cfg := config.GetConfig("../bsc.config.yaml")
 	// fmt.Println(cfg)
 
-	BlockNumber := big.NewInt(20259344)
+	BlockNumber := big.NewInt(40756466)
 
 	l := logrus.New()
 	l.SetFormatter(&logrus.TextFormatter{FullTimestamp: true})
@@ -39,6 +39,6 @@ func TestEvent(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	eventPool := monitor.DB().GetSimplePool("0xd8C8a2B125527bf97c8e4845b25dE7e964468F77")
+	eventPool := monitor.DB().GetSimplePool("0x4f55423de1049d3CBfDC72f8A40f8A6f554f92aa")
 	monitor.TestEvent(eventPool, BlockNumber)
 }

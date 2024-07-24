@@ -135,17 +135,17 @@ func (m *MovingBrick) CalcArbitrage(monitor dt.IMonitor, event dt.SimplePool, bl
 		conf := monitor.Config().Strategies.GasToken
 		gasUSDPrice := monitor.DB().GetBasePrice(conf.Base, conf.Quote)
 		gas := monitor.GetUseGas(buyPool, sellPool, amount)
-		gasUSD := float64(gas) * gasPrice / gasUSDPrice
+		gasUSD := float64(gas) * gasPrice * gasUSDPrice
 		borrow, position := m.getBorrowPool(buyPool, sellPool, baseToken)
 
 		if baseToken == conf.Base {
-			profitUSD = profit / avgPrice // avgPrice表示: 1 quote = N base
+			profitUSD = profit / avgPrice * gasUSDPrice // avgPrice表示: 1 base = N quote
 		} else if m.isUSD(baseToken) {
-			profitUSD = profit
+			profitUSD = profit / avgPrice
 		} else {
 			// 报价basetoken相对于USD的价格
 			basePrice := monitor.DB().GetBasePrice(baseToken, conf.Quote) // basePrice表示: 1 base = N quote
-			profitUSD = profit * basePrice
+			profitUSD = profit / avgPrice * basePrice
 		}
 		profitUSD -= gasUSD
 		if profitUSD < monitor.Config().MinProfitUSD {
@@ -178,25 +178,30 @@ func (m *MovingBrick) CalcArbitrage(monitor dt.IMonitor, event dt.SimplePool, bl
 	}
 }
 
-// 搬平两个池的价格
+// 搬平两个池的价格(价格用base/quote表示,即:1ETH=3000U,价格是3000,其中base是ETH,quote是USD)
 // 在a池卖出(basetoken), 在b池买入
 // 计算中包括了手续费, 如果profit大于0则可以套利
+// 返回的profit表示quoteToken的数量
 func (m *MovingBrick) calcArbitrage(monitor dt.IMonitor, aPool, bPool *dt.Pair) (deltaSell, profit, targetPrice float64) {
 	// 计算目标价格
 	targetPrice = (aPool.Price + bPool.Price) / 2
+	// 取储备小的一个值
+	minReserve := min(aPool.Reserve0, bPool.Reserve0)
 	// 计算卖出数量(以池子小的一个池来计算)
-	deltaSell = (aPool.Price - targetPrice) * min(aPool.Reserve0, bPool.Reserve0) / targetPrice / 2
+	deltaSell = (aPool.Price - targetPrice) * minReserve / targetPrice / 2
 
-	if deltaSell < 0 { //流动性太低(如何用于交易的base token超过流动性的一半)
+	if deltaSell <= 0 || deltaSell*2 >= minReserve { //流动性太低(如用于交易的base token超过流动性的一半)
 		profit = -1
 		return
 	}
 	deltaSell = deltaSell + deltaSell*monitor.Config().DeltaCoefficient //DeltaCoefficient 默认为0.4,手动系数,因为计算出来的值会偏小
-	// 买入成本
-	cost := ((bPool.Price + targetPrice) / 2) * deltaSell * (1.0 + bPool.Fee)
-	// 卖出收益
+
+	// 卖出(卖出baseToken,获得quoteToken)
 	proceeds := ((aPool.Price + targetPrice) / 2) * deltaSell * (1.0 - aPool.Fee)
-	// 利润
+	// 买入(卖出quoteToken,获得baseToken)
+	cost := ((bPool.Price + targetPrice) / 2) * deltaSell * (1.0 + bPool.Fee)
+
+	// 利润(利润的数量是表示的quoteToken的数量)
 	profit = proceeds - cost
 	info := fmt.Sprintf("%s cost: %f, proceeds: %f, profit: %f, deltaSell: %f,pa: %f, pb: %f, fa: %f, fb: %f\n", bPool.Symbol, cost, proceeds, profit, deltaSell, aPool.Price, bPool.Price, aPool.Fee, bPool.Fee)
 	monitor.Logger().Debug(info)

@@ -104,22 +104,24 @@ func New(opt *dt.Options) (dt.IMonitor, error) {
 		return nil, err
 	}
 	// 读取pool黑名单
-	err = common.LoadJSON(POOL_BLACKLIST_FILE_NAME, &m.poolBlacklist)
+	pbfn := fmt.Sprintf("%s_%s", m.cfg.NetName, POOL_BLACKLIST_FILE_NAME)
+	err = common.LoadJSON(pbfn, &m.poolBlacklist)
 	if err != nil {
-		m.logger.Infof("Failed to read file '%s'.", POOL_BLACKLIST_FILE_NAME)
+		m.logger.Infof("Failed to read file '%s'.", pbfn)
 	}
 	m.poolBlacklist = pie.Unique(m.poolBlacklist)
 	// 读取token黑名单
-	err = common.LoadJSON(TOKEN_BLACKLIST_FILE_NAME, &m.tokenBlacklist)
+	tbfn := fmt.Sprintf("%s_%s", m.cfg.NetName, TOKEN_BLACKLIST_FILE_NAME)
+	err = common.LoadJSON(tbfn, &m.tokenBlacklist)
 	if err != nil {
-		m.logger.Infof("Failed to read file '%s'.", TOKEN_BLACKLIST_FILE_NAME)
+		m.logger.Infof("Failed to read file '%s'.", tbfn)
 	}
 	m.tokenBlacklist = pie.Unique(m.tokenBlacklist)
 	//读取erc20a的token列表(name字段是一个byte32)
-	//
-	err = common.LoadJSON(TOKEN_ERC20A_FILE_NAME, &m.tokenErc20a)
+	tefn := fmt.Sprintf("%s_%s", m.cfg.NetName, TOKEN_ERC20A_FILE_NAME)
+	err = common.LoadJSON(tefn, &m.tokenErc20a)
 	if err != nil {
-		m.logger.Infof("Failed to read file '%s'.", TOKEN_ERC20A_FILE_NAME)
+		m.logger.Infof("Failed to read file '%s'.", tefn)
 	}
 	m.tokenErc20a = pie.Unique(m.tokenErc20a)
 	// 添加新交易所时需要在这里添加对应的类型
@@ -477,7 +479,7 @@ func (m *monitor) Config() *config.Configuration {
 func (m *monitor) AddTokenBlacklist(addr string) {
 	if !pie.Contains(m.tokenBlacklist, addr) {
 		m.tokenBlacklist = append(m.tokenBlacklist, addr)
-		tools.SaveJson(TOKEN_BLACKLIST_FILE_NAME, m.tokenBlacklist)
+		tools.SaveJson(fmt.Sprintf("%s_%s", m.cfg.NetName, TOKEN_BLACKLIST_FILE_NAME), m.tokenBlacklist)
 	}
 }
 func (m *monitor) GetTokenBlacklist() []string {
@@ -487,7 +489,7 @@ func (m *monitor) GetTokenBlacklist() []string {
 func (m *monitor) AddPoolBlacklist(addr string) {
 	if !pie.Contains(m.poolBlacklist, addr) {
 		m.poolBlacklist = append(m.poolBlacklist, addr)
-		tools.SaveJson(POOL_BLACKLIST_FILE_NAME, m.poolBlacklist)
+		tools.SaveJson(fmt.Sprintf("%s_%s", m.cfg.NetName, POOL_BLACKLIST_FILE_NAME), m.poolBlacklist)
 	}
 }
 func (m *monitor) GetPoolBlacklist() []string {
@@ -498,7 +500,7 @@ func (m *monitor) GetPoolBlacklist() []string {
 func (m *monitor) AddERC20A(addr common.Address) {
 	if !pie.Contains(m.tokenErc20a, addr.Hex()) {
 		m.tokenErc20a = append(m.tokenErc20a, addr.Hex())
-		tools.SaveJson(TOKEN_ERC20A_FILE_NAME, m.tokenErc20a)
+		tools.SaveJson(fmt.Sprintf("%s_%s", m.cfg.NetName, TOKEN_ERC20A_FILE_NAME), m.tokenErc20a)
 	}
 }
 func (m *monitor) GetERC20A() []string {

@@ -8,8 +8,6 @@ import "@uniswap/v3-core/contracts/interfaces/IERC20Minimal.sol";
 import "@uniswap/v3-core/contracts/libraries/TransferHelper.sol";
 import "@uniswap/v2-core/interfaces/IUniswapV2Pair.sol";
 import "@uniswap/v3-core/contracts/libraries/SafeCast.sol";
-import {CallbackValidation} from "./PancakeCV.sol";
-import {AlgebraCV} from "./AlgebraCV.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import "pancake-v3-contracts/v3-core/contracts/interfaces/callback/IPancakeV3FlashCallback.sol";
 import "pancake-v3-contracts/v3-core/contracts/interfaces/callback/IPancakeV3SwapCallback.sol";
@@ -50,7 +48,7 @@ contract BSCTrader is
     /// @dev The maximum value that can be returned from #getSqrtRatioAtTick. Equivalent to getSqrtRatioAtTick(MAX_TICK)
     uint160 internal constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970342;
 
-    address public immutable factorypancakeV3 = 0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9;
+    address private lastCalledPool;
 
     bool private hasBorrow = false;
 
@@ -130,6 +128,7 @@ contract BSCTrader is
         private
         returns (uint256 amountOut)
     {
+        lastCalledPool = address(pool);
         uint24 fee = 0;
         if (_t == 4) fee = 0;
         else fee = pool.fee();
@@ -202,25 +201,23 @@ contract BSCTrader is
     }
 
     function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
-        v3SwapCallback(amount0Delta, amount1Delta, data, 2);
+        v3SwapCallback(amount0Delta, amount1Delta, data);
     }
 
     function pancakeV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
-        v3SwapCallback(amount0Delta, amount1Delta, data, 3);
+        v3SwapCallback(amount0Delta, amount1Delta, data);
     }
 
     function algebraSwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
-        v3SwapCallback(amount0Delta, amount1Delta, data, 4);
+        v3SwapCallback(amount0Delta, amount1Delta, data);
     }
 
-    function v3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata _data, uint16 _t) private {
+    function v3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata _data) private {
         require(amount0Delta > 0 || amount1Delta > 0, "S");
+        require(msg.sender == lastCalledPool, "EP");
+
+        lastCalledPool = address(0);
         SwapCallbackData memory data = abi.decode(_data, (SwapCallbackData));
-        if (_t == 4) {
-            AlgebraCV.verifyCallback(address(0xc89F69Baa3ff17a842AB2DE89E5Fc8a8e2cc7358), data.tokenIn, data.tokenOut);
-        } else {
-            CallbackValidation.verifyCallback(factorypancakeV3, data.tokenIn, data.tokenOut, data.fee);
-        }
 
         (bool isExactInput, uint256 amountToPay) = amount0Delta > 0
             ? (data.tokenIn < data.tokenOut, uint256(amount0Delta))
