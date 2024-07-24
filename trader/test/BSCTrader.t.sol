@@ -31,7 +31,7 @@ contract TraderTest is Test {
 
     address ba = address(0x04F46CDfE8DD348E41902eEF1aFF19AcE1661F4c);
 
-    uint256 ablock = 40729654;
+    uint256 ablock = 40744039;
 
     function setUp() public {
         mainnetFork = vm.createFork(MAINNET_RPC_URL, ablock);
@@ -60,13 +60,13 @@ contract TraderTest is Test {
 
         //测试数据
         SwapParamsData memory params;
-        params.amount = 0.159237 ether; //params.amount>amount时将会用借贷完成交易
+        params.amount = 4.373872 ether; //params.amount>amount时将会用借贷完成交易
         // params.amount = 37688; // wei
         uint256 deadline = ablock;
         uint8 borrow = 0;
-        params.types = (deadline << 72) | (uint256(borrow) << 64) | (1 << 48) | (4 << 32) | (25 << 16) | 25;
-        params.buyPool = 0xc2096eecA6429b44FDFBd9Fe5C8FC298b6602326;
-        params.sellPool = 0x5135c813d5f9d3624221b3BdBaC805339Fa5a591;
+        params.types = (deadline << 72) | (uint256(borrow) << 64) | (1 << 48) | (3 << 32) | (25 << 16) | 25;
+        params.buyPool = 0x52672c173Fa7F00d921437708927bFE9BB8892f5;
+        params.sellPool = 0xb2E3dbB8c350f87f69C91b1F11825cD3401a1138;
         params.borrowPool = 0x8cb829111c90E0101492d5A1aa011F09614129E7;
         params.baseToken = baseAddress;
         vm.startPrank(testAddress);

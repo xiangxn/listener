@@ -106,20 +106,20 @@ func New(opt *dt.Options) (dt.IMonitor, error) {
 	// 读取pool黑名单
 	err = common.LoadJSON(POOL_BLACKLIST_FILE_NAME, &m.poolBlacklist)
 	if err != nil {
-		m.logger.Debugf("Failed to read file '%s'.", POOL_BLACKLIST_FILE_NAME)
+		m.logger.Infof("Failed to read file '%s'.", POOL_BLACKLIST_FILE_NAME)
 	}
 	m.poolBlacklist = pie.Unique(m.poolBlacklist)
 	// 读取token黑名单
 	err = common.LoadJSON(TOKEN_BLACKLIST_FILE_NAME, &m.tokenBlacklist)
 	if err != nil {
-		m.logger.Debugf("Failed to read file '%s'.", TOKEN_BLACKLIST_FILE_NAME)
+		m.logger.Infof("Failed to read file '%s'.", TOKEN_BLACKLIST_FILE_NAME)
 	}
 	m.tokenBlacklist = pie.Unique(m.tokenBlacklist)
 	//读取erc20a的token列表(name字段是一个byte32)
 	//
 	err = common.LoadJSON(TOKEN_ERC20A_FILE_NAME, &m.tokenErc20a)
 	if err != nil {
-		m.logger.Debugf("Failed to read file '%s'.", TOKEN_ERC20A_FILE_NAME)
+		m.logger.Infof("Failed to read file '%s'.", TOKEN_ERC20A_FILE_NAME)
 	}
 	m.tokenErc20a = pie.Unique(m.tokenErc20a)
 	// 添加新交易所时需要在这里添加对应的类型
@@ -230,11 +230,12 @@ func (m *monitor) checkEvent() {
 	wg.Wait()
 	m.logger.Info("本次预处理共", len(events), "个事件, 共用时: ", time.Since(t), fmt.Sprintf(", 最新GasPrice: %.18f", m.gasPrice))
 
-	events = m.filterLog(events)
+	var eventPools []dt.SimplePool
+	events, eventPools = m.filterLog(events)
 	m.logger.Info(fmt.Sprintf("有%d个事件需要计算套利。。。", len(events)))
 	// 获取事件相关所有池的价格
 	t = time.Now()
-	m.fetchPrice(events)
+	m.fetchPrice(eventPools)
 	m.logger.Info(fmt.Sprintf("获取事件相关交易对价格, 共用时: %s", time.Since(t)))
 
 	// 处理事件数据, 根据并发限制数来处理
@@ -248,13 +249,11 @@ func (m *monitor) checkEvent() {
 	}
 }
 
-func (m *monitor) fetchPrice(events []types.Log) {
-	addrs := pie.Map(events, func(event types.Log) string { return event.Address.Hex() })
-	eventPools := m.database.GetSimplePools(addrs)
+func (m *monitor) fetchPrice(eventPools []dt.SimplePool) {
 	var pools []dt.Pool
 	for _, ep := range eventPools {
 		ps := m.database.GetPoolsByTokens([]string{ep.Token0, ep.Token1})
-		if len(ps) >= 2 {
+		if len(ps) >= 2 { //如果只有单个池子则不更新价格
 			pools = append(pools, ps...)
 		}
 	}
@@ -262,10 +261,8 @@ func (m *monitor) fetchPrice(events []types.Log) {
 }
 
 // 所有事件中，如果token0,token1一致，如eth/usdt,usdt/eth,只保留一个Log
-func (m *monitor) filterLog(events []types.Log) (results []types.Log) {
-	if len(events) < 1 {
-		return
-	}
+// 同时过滤掉token黑名单与池黑名单
+func (m *monitor) filterLog(events []types.Log) (resEvents []types.Log, resPools []dt.SimplePool) {
 	var addrs []string
 	for _, event := range events {
 		addrs = append(addrs, event.Address.Hex())
@@ -273,9 +270,19 @@ func (m *monitor) filterLog(events []types.Log) (results []types.Log) {
 	pools := m.database.GetSimplePools(addrs)
 	pools = tools.Unique(pools)
 	for _, pool := range pools {
+		// 过滤池黑名单
+		if pie.Contains(m.poolBlacklist, pool.Address) {
+			continue
+		}
+		// 过滤token黑名单
+		if pie.Contains(m.tokenBlacklist, pool.Token0) || pie.Contains(m.tokenBlacklist, pool.Token1) {
+			m.AddPoolBlacklist(pool.Address)
+			continue
+		}
+		resPools = append(resPools, pool)
 		for _, event := range events {
 			if pool.Address == event.Address.Hex() {
-				results = append(results, event)
+				resEvents = append(resEvents, event)
 			}
 		}
 	}
