@@ -726,6 +726,7 @@ func (m *monitor) Swap(client *ethclient.Client, params dt.SwapParams, traderCon
 			err = client.SendTransaction(ctx, signedTx)
 		}
 	}
+	errMsg := ""
 
 	if err != nil {
 		if strings.Contains(err.Error(), "insufficient funds for gas *") {
@@ -736,6 +737,7 @@ func (m *monitor) Swap(client *ethclient.Client, params dt.SwapParams, traderCon
 		m.Logger().WithField(FieldTag, "Swap4").Error(err)
 		ok = false
 		confirm = true
+		errMsg = err.Error()
 	}
 
 	txHash = signedTx.Hash()
@@ -749,6 +751,7 @@ func (m *monitor) Swap(client *ethclient.Client, params dt.SwapParams, traderCon
 		SellPool:   params.SellPool,
 		BaseToken:  params.BaseToken,
 		CreatedAt:  time.Now(),
+		Error:      errMsg,
 	})
 	return
 }

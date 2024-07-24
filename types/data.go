@@ -78,4 +78,5 @@ type Transaction struct {
 	GasPrice   uint64    `bson:"gas_price"`
 	BaseToken  string    `bson:"base_token"`
 	CreatedAt  time.Time `bson:"created_at"`
+	Error      string    `bson:"error"`
 }
