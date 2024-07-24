@@ -365,12 +365,13 @@ func (m *monitor) ConfirmingTransaction() {
 				defer wg.Done()
 				receipt := si.GetReceipt(mo.httpClient, common.HexToHash(txr.Tx))
 				if receipt != nil {
-					income := m.caclIncome(m.httpClient, m.cfg.TraderContract, txr.Cost, txr.BaseToken)
+					income := m.caclIncome(mo.httpClient, m.cfg.TraderContract, txr.Cost, txr.BaseToken)
 					if receipt.Status == 1 {
 						//实际运行时不再计算单笔收益。可以不定期查询余额与失败的消耗计算总收益
-						mo.DB().UpdateTransaction(txr.Tx, true, receipt.GasUsed, receipt.EffectiveGasPrice.Uint64(), income, true)
+						mo.DB().UpdateTransaction(txr.Tx, true, receipt.GasUsed, receipt.EffectiveGasPrice.Uint64(), income, true, "")
 					} else {
-						mo.DB().UpdateTransaction(txr.Tx, true, receipt.GasUsed, receipt.EffectiveGasPrice.Uint64(), income, false)
+						revertMsg := si.GetRevert(m.ctx, mo.httpClient, receipt, nil)
+						mo.DB().UpdateTransaction(txr.Tx, true, receipt.GasUsed, receipt.EffectiveGasPrice.Uint64(), income, false, revertMsg)
 						// m.checkFailTx(txr.BuyPool, txr.SellPool)
 					}
 				}
@@ -628,7 +629,7 @@ func (m *monitor) GetUseGas(buyPool, sellPool *dt.Pair, amount float64) int64 {
 	}
 }
 
-func (m *monitor) Swap(client *ethclient.Client, params dt.SwapParams, traderContract string, simulation bool, cost float64, baseDec uint64) (txHash common.Hash) {
+func (m *monitor) Swap(client *ethclient.Client, params dt.SwapParams, traderContract string, simulation bool, cost float64, baseDec uint64) (signedTx *types.Transaction) {
 	if traderContract == "" { //如果不配置套利合约就不执行调用
 		m.logger.Info("No arbitrage contract is configured.")
 		return
@@ -686,7 +687,7 @@ func (m *monitor) Swap(client *ethclient.Client, params dt.SwapParams, traderCon
 
 	// fmt.Printf("data: %x", data)
 	var tx *types.Transaction
-	var signedTx *types.Transaction
+	// var signedTx *types.Transaction
 	// var err error
 	if m.cfg.EIP1559 {
 		to := common.HexToAddress(traderContract)
@@ -714,7 +715,7 @@ func (m *monitor) Swap(client *ethclient.Client, params dt.SwapParams, traderCon
 
 	ok := true
 	confirm := false
-	if m.cfg.Simulation.Enable {
+	if simulation {
 		err = client.SendTransaction(ctx, signedTx)
 	} else {
 		switch m.cfg.Rpcs.Flashbots {
@@ -740,9 +741,8 @@ func (m *monitor) Swap(client *ethclient.Client, params dt.SwapParams, traderCon
 		errMsg = err.Error()
 	}
 
-	txHash = signedTx.Hash()
 	m.database.SaveTransaction(dt.Transaction{
-		Tx:         txHash.Hex(),
+		Tx:         signedTx.Hash().Hex(),
 		Ok:         ok,
 		Confirm:    confirm,
 		Cost:       cost,
@@ -829,16 +829,18 @@ func (m *monitor) DoSwap(params dt.SwapParams) {
 		//为params的Deadline添加三个块，因为anvil为自动开采区块(每调用一次send就会开采一个块)
 		params.Deadline += 3
 		//开始模拟交易
-		txHash := m.Swap(si.GetClient(port), params, traderContract, true, cost, dec)
+		signedTx := m.Swap(si.GetClient(port), params, traderContract, true, cost, dec)
 		// 计算收益情况
 		for {
-			receipt := si.GetReceipt(si.GetClient(port), txHash)
+			receipt := si.GetReceipt(si.GetClient(port), signedTx.Hash())
 			if receipt != nil {
 				income := m.caclIncome(si.GetClient(port), traderContract, cost, params.BaseToken)
 				if receipt.Status == 1 {
-					m.database.UpdateTransaction(txHash.Hex(), true, receipt.GasUsed, receipt.EffectiveGasPrice.Uint64(), income, true)
+					m.database.UpdateTransaction(signedTx.Hash().Hex(), true, receipt.GasUsed, receipt.EffectiveGasPrice.Uint64(), income, true, "")
 				} else {
-					m.database.UpdateTransaction(txHash.Hex(), true, receipt.GasUsed, receipt.EffectiveGasPrice.Uint64(), income, false)
+					// 获取revert
+					errMsg := si.GetRevert(ctx, si.GetClient(port), receipt, signedTx)
+					m.database.UpdateTransaction(signedTx.Hash().Hex(), true, receipt.GasUsed, receipt.EffectiveGasPrice.Uint64(), income, false, errMsg)
 					// m.checkFailTx(params.BuyPool, params.SellPool)
 				}
 				break

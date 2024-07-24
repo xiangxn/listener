@@ -284,6 +284,18 @@ func GetReceipt(client *ethclient.Client, hash common.Hash) *types.Receipt {
 	return receipt
 }
 
+func GetRevert(ctx context.Context, client *ethclient.Client, receipt *types.Receipt, stx *types.Transaction) (errMsg string) {
+	if stx == nil {
+		tx, _, _ := client.TransactionByHash(ctx, receipt.TxHash)
+		stx = tx
+	}
+	result, _ := client.CallContract(ctx, ethereum.CallMsg{To: stx.To(), Data: stx.Data()}, receipt.BlockNumber)
+	if len(result) > 0 {
+		errMsg = string(result)
+	}
+	return
+}
+
 func DeployTrader(port uint32, pKey *ecdsa.PrivateKey) (addr string) {
 	client := GetClient(port)
 	fromAddress := GetAddress(pKey)

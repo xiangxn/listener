@@ -27,7 +27,7 @@ type IActions interface {
 	GetExistingTokens(tokens []string) (existingToken []string)
 	GetPairsByTokens(tokens []string) (pairs Pairs)
 	GetTransactions(ok bool, confirm bool) (txs []Transaction)
-	UpdateTransaction(hash string, confirm bool, gasUsed, gasPrice uint64, income float64, ok bool)
+	UpdateTransaction(hash string, confirm bool, gasUsed, gasPrice uint64, income float64, ok bool, err string)
 	GetToken(addr string) Token
 	GetGas(buyPool, sellPool string) (min, max int64)
 	GetFailTransacttionCount(buyPool, sellPool string) int

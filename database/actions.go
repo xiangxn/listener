@@ -354,7 +354,7 @@ func (a Actions) GetTransactions(ok bool, confirm bool) (txs []dt.Transaction) {
 	return
 }
 
-func (a Actions) UpdateTransaction(hash string, confirm bool, gasUsed, gasPrice uint64, income float64, ok bool) {
+func (a Actions) UpdateTransaction(hash string, confirm bool, gasUsed, gasPrice uint64, income float64, ok bool, errMsg string) {
 	ctx, cancel := context.WithCancel(a.Mctx)
 	defer cancel()
 
@@ -367,12 +367,14 @@ func (a Actions) UpdateTransaction(hash string, confirm bool, gasUsed, gasPrice 
 				GasPrice uint64  `bson:"gas_price"`
 				Income   float64 `bson:"income"`
 				Ok       bool    `bson:"ok"`
+				Error    string  `bson:"error"`
 			}{
 				Confirm:  confirm,
 				UseGas:   gasUsed,
 				GasPrice: gasPrice,
 				Income:   income,
 				Ok:       ok,
+				Error:    errMsg,
 			}},
 		})
 	if err != nil {
