@@ -3,12 +3,12 @@ package strategies
 import (
 	"fmt"
 	"log"
+	"math/big"
 	"sort"
 	"strings"
 
 	"github.com/elliotchance/pie/v2"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/sirupsen/logrus"
 	"github.com/xiangxn/go-multicall"
 	dt "github.com/xiangxn/listener/types"
@@ -90,14 +90,14 @@ func (m *MovingBrick) GetBaseToken(token0, token1 string) string {
 	return ""
 }
 
-func (m *MovingBrick) CalcArbitrage(monitor dt.IMonitor, event types.Log, pool *dt.Pool, gasPrice float64) (arbitrage *dt.Arbitrage, ok bool) {
-	baseToken := m.GetBaseToken(pool.Token0.Address, pool.Token1.Address)
+func (m *MovingBrick) CalcArbitrage(monitor dt.IMonitor, event dt.SimplePool, blockNumber *big.Int, gasPrice float64) (arbitrage *dt.Arbitrage, ok bool) {
+	baseToken := m.GetBaseToken(event.Token0, event.Token1)
 	if baseToken == "" {
-		monitor.Logger().Debug(fmt.Sprintf(`There is no "basetoken" in the trading pair: %s %s/%s`, pool.Address, pool.Token0.Symbol, pool.Token1.Symbol))
+		monitor.Logger().Debug(fmt.Sprintf(`There is no "basetoken" in the trading pair: %s %s/%s`, event.Address, event.Token0, event.Token1))
 		return nil, false
 	}
 
-	data := monitor.DB().GetPairsByTokens([]string{pool.Token0.Address, pool.Token1.Address})
+	data := monitor.DB().GetPairsByTokens([]string{event.Token0, event.Token1})
 	if len(data) == 0 {
 		return nil, false
 	}
@@ -162,7 +162,7 @@ func (m *MovingBrick) CalcArbitrage(monitor dt.IMonitor, event types.Log, pool *
 		}).Info("发现可套利交易")
 
 		arbitrage = new(dt.Arbitrage)
-		arbitrage.BlockNumber = event.BlockNumber
+		arbitrage.BlockNumber = uint64(blockNumber.Int64())
 		arbitrage.Amount = amount
 		arbitrage.BuyPool = *buyPool
 		arbitrage.SellPool = *sellPool

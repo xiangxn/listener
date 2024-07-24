@@ -1,10 +1,9 @@
 package main
 
 import (
+	"math/big"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
 	"github.com/xiangxn/listener/config"
@@ -19,13 +18,11 @@ func TestEvent(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	event := types.Log{
-		Address:     common.HexToAddress("0xd8C8a2B125527bf97c8e4845b25dE7e964468F77"),
-		BlockNumber: 20259344,
-	}
 
 	cfg := config.GetConfig("../config.yaml")
 	// fmt.Println(cfg)
+
+	BlockNumber := big.NewInt(20259344)
 
 	l := logrus.New()
 	l.SetFormatter(&logrus.TextFormatter{FullTimestamp: true})
@@ -42,5 +39,6 @@ func TestEvent(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	monitor.TestEvent(event)
+	eventPool := monitor.DB().GetSimplePool("0xd8C8a2B125527bf97c8e4845b25dE7e964468F77")
+	monitor.TestEvent(eventPool, BlockNumber)
 }

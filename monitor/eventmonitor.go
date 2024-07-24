@@ -235,21 +235,24 @@ func (m *monitor) checkEvent() {
 	m.logger.Info(fmt.Sprintf("有%d个事件需要计算套利。。。", len(events)))
 	// 获取事件相关所有池的价格
 	t = time.Now()
-	m.fetchPrice(eventPools)
+	blockNumber := m.fetchPrice(eventPools)
 	m.logger.Info(fmt.Sprintf("获取事件相关交易对价格, 共用时: %s", time.Since(t)))
+	if blockNumber.Cmp(big.NewInt(0)) == 0 {
+		return
+	}
 
 	// 处理事件数据, 根据并发限制数来处理
 	ch := make(chan struct{}, m.cfg.MaxConcurrent)
-	for _, e := range events {
+	for _, e := range eventPools {
 		ch <- struct{}{}
-		go func(event types.Log) {
-			m.processEvent(event)
+		go func(event dt.SimplePool, bn *big.Int) {
+			m.processEvent(event, bn)
 			<-ch
-		}(e)
+		}(e, blockNumber)
 	}
 }
 
-func (m *monitor) fetchPrice(eventPools []dt.SimplePool) {
+func (m *monitor) fetchPrice(eventPools []dt.SimplePool) (blockNumber *big.Int) {
 	var pools []dt.Pool
 	for _, ep := range eventPools {
 		ps := m.database.GetPoolsByTokens([]string{ep.Token0, ep.Token1})
@@ -257,7 +260,7 @@ func (m *monitor) fetchPrice(eventPools []dt.SimplePool) {
 			pools = append(pools, ps...)
 		}
 	}
-	m.UpdatePrice(pools)
+	return m.UpdatePrice(pools)
 }
 
 // 所有事件中，如果token0,token1一致，如eth/usdt,usdt/eth,只保留一个Log
@@ -308,12 +311,8 @@ func (m *monitor) GetDex(poolAddr string) (IDex, *dt.Pool) {
 }
 
 // 根据策略处理事件
-func (m *monitor) processEvent(event types.Log) {
-	idex, pool := m.GetDex(event.Address.Hex())
-	if idex == nil || pool == nil {
-		return
-	}
-	arbitrage, ok := m.handler.CalcArbitrage(m, event, pool, m.gasPrice*m.cfg.GasTimes)
+func (m *monitor) processEvent(event dt.SimplePool, bn *big.Int) {
+	arbitrage, ok := m.handler.CalcArbitrage(m, event, bn, m.gasPrice*m.cfg.GasTimes)
 	if ok {
 		m.handler.Do(m, arbitrage)
 	}
@@ -540,7 +539,7 @@ func (m *monitor) SendToTG(msg string) {
 	}
 }
 
-func (m *monitor) UpdatePrice(pools []dt.Pool) {
+func (m *monitor) UpdatePrice(pools []dt.Pool) (blockNumber *big.Int) {
 	mcContract, err := multicall.NewContract(dex.BlockNumberABI, multicall.DefaultAddress)
 	if err != nil {
 		m.logger.Error("UpdatePrice 0:", err)
@@ -576,7 +575,7 @@ func (m *monitor) UpdatePrice(pools []dt.Pool) {
 		m.logger.Error("UpdatePrice 1:", err)
 		return
 	}
-	blockNumber := calls[0].Outputs.(*dt.ResBigInt).Int
+	blockNumber = calls[0].Outputs.(*dt.ResBigInt).Int
 	m.baseFee = calls[1].Outputs.(*dt.ResBigInt).Int
 	if startIndex > 2 {
 		bts := m.handler.GetBaseTokens()
@@ -612,6 +611,7 @@ func (m *monitor) UpdatePrice(pools []dt.Pool) {
 		pairs = append(pairs, pair)
 	}
 	m.database.SavePairs(pairs)
+	return
 }
 
 func (m *monitor) GetUseGas(buyPool, sellPool *dt.Pair, amount float64) int64 {
@@ -857,6 +857,6 @@ func (m *monitor) caclIncome(client *ethclient.Client, traderContract string, co
 	return
 }
 
-func (m *monitor) TestEvent(event types.Log) {
-	m.processEvent(event)
+func (m *monitor) TestEvent(eventPool dt.SimplePool, blockNumber *big.Int) {
+	m.processEvent(eventPool, blockNumber)
 }
