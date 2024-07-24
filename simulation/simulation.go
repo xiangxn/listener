@@ -291,10 +291,11 @@ func GetRevert(ctx context.Context, client *ethclient.Client, receipt *types.Rec
 	}
 	result, err := client.CallContract(ctx, ethereum.CallMsg{To: stx.To(), Data: stx.Data()}, receipt.BlockNumber)
 	if err != nil {
-		fmt.Println("GetRevert error: ", err)
+		// execution reverted: revert:
+		errMsg = err.Error()
 	}
 	if len(result) > 0 {
-		errMsg = string(result)
+		errMsg = errMsg + string(result)
 	}
 	return
 }
