@@ -370,7 +370,7 @@ func (m *monitor) ConfirmingTransaction() {
 						//实际运行时不再计算单笔收益。可以不定期查询余额与失败的消耗计算总收益
 						mo.DB().UpdateTransaction(txr.Tx, true, receipt.GasUsed, receipt.EffectiveGasPrice.Uint64(), income, true, "")
 					} else {
-						revertMsg := si.GetRevert(m.ctx, mo.httpClient, receipt, nil)
+						_, revertMsg := si.GetRevert(m.ctx, mo.httpClient, receipt, nil)
 						mo.DB().UpdateTransaction(txr.Tx, true, receipt.GasUsed, receipt.EffectiveGasPrice.Uint64(), income, false, revertMsg)
 						// m.checkFailTx(txr.BuyPool, txr.SellPool)
 					}
@@ -732,8 +732,6 @@ func (m *monitor) Swap(client *ethclient.Client, params dt.SwapParams, traderCon
 	if err != nil {
 		if strings.Contains(err.Error(), "insufficient funds for gas *") {
 			go m.SendToTG(fmt.Sprintf("机器人余额不足: \nhttps://etherscan.io/address/%s", fromAddress))
-		} else if !pie.Contains([]string{"D", "E"}, err.Error()) {
-			m.checkFailTx(params.BuyPool, params.SellPool)
 		}
 		m.Logger().WithField(FieldTag, "Swap4").Error(err)
 		ok = false
@@ -790,9 +788,17 @@ func (m *monitor) sendPrivateTransaction(ctx context.Context, signedTx *types.Tr
 }
 
 // 在数据库中检查失败的交易，如果失败次数>=1就把池加入黑名单
-func (m *monitor) checkFailTx(buyPool, sellPool string) {
+func (m *monitor) checkFailTx(buyPool, sellPool, errMsg string) {
+	if errMsg == "D" || errMsg == "" { //只是调用过期的不处理
+		return
+	}
+	baseCount := 1
+	if errMsg == "E" { //只是套利失败的,需要两次失败才加入黑名单
+		baseCount = 2
+	}
+	// 其他错误一律加入黑名单
 	failCount := m.database.GetFailTransacttionCount(buyPool, sellPool)
-	if failCount >= 1 {
+	if failCount >= baseCount {
 		pool := m.database.GetSimplePool(buyPool)
 		baseToken := m.handler.GetBaseToken(pool.Token0, pool.Token1)
 		if baseToken == pool.Token0 {
@@ -839,9 +845,9 @@ func (m *monitor) DoSwap(params dt.SwapParams) {
 					m.database.UpdateTransaction(signedTx.Hash().Hex(), true, receipt.GasUsed, receipt.EffectiveGasPrice.Uint64(), income, true, "")
 				} else {
 					// 获取revert
-					errMsg := si.GetRevert(ctx, si.GetClient(port), receipt, signedTx)
+					_, errMsg := si.GetRevert(ctx, si.GetClient(port), receipt, signedTx)
 					m.database.UpdateTransaction(signedTx.Hash().Hex(), true, receipt.GasUsed, receipt.EffectiveGasPrice.Uint64(), income, false, errMsg)
-					// m.checkFailTx(params.BuyPool, params.SellPool)
+					m.checkFailTx(params.BuyPool, params.SellPool, errMsg)
 				}
 				break
 			}

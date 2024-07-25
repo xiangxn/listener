@@ -284,18 +284,19 @@ func GetReceipt(client *ethclient.Client, hash common.Hash) *types.Receipt {
 	return receipt
 }
 
-func GetRevert(ctx context.Context, client *ethclient.Client, receipt *types.Receipt, stx *types.Transaction) (errMsg string) {
+func GetRevert(ctx context.Context, client *ethclient.Client, receipt *types.Receipt, stx *types.Transaction) (result []byte, errMsg string) {
 	if stx == nil {
 		tx, _, _ := client.TransactionByHash(ctx, receipt.TxHash)
 		stx = tx
 	}
 	result, err := client.CallContract(ctx, ethereum.CallMsg{To: stx.To(), Data: stx.Data()}, receipt.BlockNumber)
 	if err != nil {
-		// execution reverted: revert:
+		const errHead = "execution reverted: revert: "
 		errMsg = err.Error()
-	}
-	if len(result) > 0 {
-		errMsg = errMsg + string(result)
+		if strings.Contains(errMsg, errHead) {
+			em, _ := strings.CutPrefix(errMsg, errHead)
+			errMsg = em
+		}
 	}
 	return
 }
