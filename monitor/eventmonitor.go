@@ -572,7 +572,8 @@ func (m *monitor) UpdatePrice(pools []dt.Pool) (blockNumber *big.Int) {
 	}
 
 	t := time.Now()
-	results, err := m.multicall.Call(nil, calls...)
+	// results, err := m.multicall.Call(nil, calls...)
+	results, err := tools.ConcurrentMulticall(m.multicall, calls, 2000, m.Config().MaxConcurrent)
 	m.logger.Info(fmt.Sprintf("UpdatePrice Multicall调用, 共%d个Call, 共用时%s", len(calls), time.Since(t)))
 	if err != nil {
 		m.logger.Error("UpdatePrice 1:", err)
