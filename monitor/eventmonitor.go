@@ -341,7 +341,6 @@ func (m *monitor) subscribeEvents(ctx context.Context) error {
 		case err := <-sub.Err():
 			return err
 		case vLog := <-logs:
-			fmt.Println(vLog)
 			if !timer.Stop() && len(timer.C) > 0 {
 				<-timer.C
 			}
