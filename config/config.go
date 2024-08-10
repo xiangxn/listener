@@ -26,9 +26,9 @@ type Configuration struct {
 	Dburl   string `json:"dburl" yaml:"dburl"`
 	Rpcs    struct {
 		// 合适的值:["","alchemy","flashbot"]
-		Flashbots string `json:"flashbots" yaml:"flashbots"`
-		Http      string `json:"http" yaml:"http"`
-		Ws        string `json:"ws" yaml:"ws"`
+		Flashbots string   `json:"flashbots" yaml:"flashbots"`
+		Http      string   `json:"http" yaml:"http"`
+		Ws        []string `json:"ws" yaml:"ws"`
 	} `json:"rpcs" yaml:"rpcs"`
 	Simulation struct {
 		// 是否开起模拟交易

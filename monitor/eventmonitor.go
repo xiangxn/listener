@@ -60,11 +60,11 @@ func createQuery(configEvents []config.DexConfig) ethereum.FilterQuery {
 // New 初始化eth 监控器
 func New(opt *dt.Options) (dt.IMonitor, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	client, err := ethclient.DialContext(ctx, opt.Cfg.Rpcs.Ws)
-	if err != nil {
-		cancel()
-		return nil, err
-	}
+	// client, err := ethclient.DialContext(ctx, opt.Cfg.Rpcs.Ws)
+	// if err != nil {
+	// 	cancel()
+	// 	return nil, err
+	// }
 	httpClient, err := ethclient.Dial(opt.Cfg.Rpcs.Http)
 	if err != nil {
 		cancel()
@@ -74,7 +74,6 @@ func New(opt *dt.Options) (dt.IMonitor, error) {
 		ctx:                ctx,
 		cfg:                opt.Cfg,
 		cancel:             cancel,
-		cli:                client,
 		httpClient:         httpClient,
 		handler:            opt.Handler,
 		logger:             opt.Logger,
@@ -327,6 +326,7 @@ func (m *monitor) subscribeEvents(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	m.logger.Info("Start subscribe...")
 
 	defer sub.Unsubscribe()
 
@@ -341,6 +341,7 @@ func (m *monitor) subscribeEvents(ctx context.Context) error {
 		case err := <-sub.Err():
 			return err
 		case vLog := <-logs:
+			fmt.Println(vLog)
 			if !timer.Stop() && len(timer.C) > 0 {
 				<-timer.C
 			}
@@ -397,10 +398,22 @@ func (m *monitor) Run() {
 		cancel()
 	}()
 
+	wsIndex := 0
 	for {
-		err := m.subscribeEvents(ctx)
+		client, err := ethclient.DialContext(ctx, m.cfg.Rpcs.Ws[wsIndex])
 		if err != nil {
-			m.logger.WithField(FieldTag, "subscribeEvents").Error(err)
+			m.logger.WithField(FieldTag, "Run").Warn(err)
+			wsIndex += 1
+			if wsIndex >= len(m.cfg.Rpcs.Ws) {
+				wsIndex = 0
+				time.Sleep(5 * time.Second)
+			}
+			continue
+		}
+		m.cli = client
+		err1 := m.subscribeEvents(ctx)
+		if err1 != nil {
+			m.logger.WithField(FieldTag, "subscribeEvents").Error(err1)
 		}
 		select {
 		case <-ctx.Done():
@@ -408,8 +421,13 @@ func (m *monitor) Run() {
 			return
 		default:
 			// Continue to attempt reconnecting
-			m.logger.WithField(FieldTag, "subscribeEvents").Info("Reconnecting after error...")
-			time.Sleep(5 * time.Second) // Wait before attempting to reconnect
+			rt := time.Duration(5)
+			m.logger.WithField(FieldTag, "subscribeEvents").Info(fmt.Sprintf("Reconnect after %d seconds...", rt))
+			time.Sleep(rt * time.Second) // Wait before attempting to reconnect
+			wsIndex += 1
+			if wsIndex >= len(m.cfg.Rpcs.Ws) {
+				wsIndex = 0
+			}
 		}
 	}
 }
