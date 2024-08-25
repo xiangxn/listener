@@ -401,18 +401,19 @@ func (m *monitor) Run() {
 	for {
 		client, err := ethclient.DialContext(ctx, m.cfg.Rpcs.Ws[wsIndex])
 		if err != nil {
-			m.logger.WithField(FieldTag, "Run").Warn(err)
+			m.logger.WithField(FieldTag, "Run").Warn(err, m.cfg.Rpcs.Ws[wsIndex])
 			wsIndex += 1
 			if wsIndex >= len(m.cfg.Rpcs.Ws) {
 				wsIndex = 0
-				time.Sleep(5 * time.Second)
 			}
+			time.Sleep(5 * time.Second)
 			continue
 		}
 		m.cli = client
 		err1 := m.subscribeEvents(ctx)
 		if err1 != nil {
 			m.logger.WithField(FieldTag, "subscribeEvents").Error(err1)
+			m.cli = nil
 		}
 		select {
 		case <-ctx.Done():
