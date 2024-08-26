@@ -49,7 +49,7 @@ func (u *Thena) CreatePriceCall(pool *dt.Pool) (calls []*multicall.Call) {
 	return
 }
 
-func (u *Thena) CalcPrice(calls []*multicall.Call, blockNumber *big.Int, pool *dt.Pool) (pair dt.Pair) {
+func (u *Thena) CalcPrice(calls []*multicall.Call, blockNumber uint64, pool *dt.Pool) (pair dt.Pair) {
 	if len(calls) == 0 {
 		return
 	}

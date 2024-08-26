@@ -16,18 +16,19 @@ type TelegramRequestBody struct {
 }
 
 type SwapParams struct {
-	BuyPool   string
-	SellPool  string
-	Amount    float64
-	Deadline  uint64
-	BuyType   uint8
-	SellType  uint8
-	BuyFee    uint16
-	SellFee   uint16
-	GasPrice  float64
-	Borrow    string
-	Position  uint8
-	BaseToken string
+	BuyPool     string
+	SellPool    string
+	Amount      float64
+	BlockNumber uint64
+	Deadline    uint64
+	BuyType     uint8
+	SellType    uint8
+	BuyFee      uint16
+	SellFee     uint16
+	GasPrice    float64
+	Borrow      string
+	Position    uint8
+	BaseToken   string
 }
 
 type Options struct {

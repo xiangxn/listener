@@ -22,7 +22,7 @@ func TestEvent(t *testing.T) {
 	cfg := config.GetConfig("../bsc.config.yaml")
 	// fmt.Println(cfg)
 
-	BlockNumber := big.NewInt(40756466)
+	BlockNumber := big.NewInt(40756466).Uint64()
 
 	l := logrus.New()
 	l.SetFormatter(&logrus.TextFormatter{FullTimestamp: true})

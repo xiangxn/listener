@@ -52,7 +52,7 @@ func (u *PancakeV3) CreatePriceCall(pool *dt.Pool) (calls []*multicall.Call) {
 	return
 }
 
-func (u *PancakeV3) CalcPrice(calls []*multicall.Call, blockNumber *big.Int, pool *dt.Pool) (pair dt.Pair) {
+func (u *PancakeV3) CalcPrice(calls []*multicall.Call, blockNumber uint64, pool *dt.Pool) (pair dt.Pair) {
 	if len(calls) == 0 {
 		return
 	}

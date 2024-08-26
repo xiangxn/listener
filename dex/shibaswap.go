@@ -1,8 +1,6 @@
 package dex
 
 import (
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/xiangxn/go-multicall"
 
@@ -27,7 +25,7 @@ func (u *ShibaSwap) CreatePriceCall(pool *dt.Pool) (calls []*multicall.Call) {
 	return
 }
 
-func (u *ShibaSwap) CalcPrice(calls []*multicall.Call, blockNumber *big.Int, pool *dt.Pool) (pair dt.Pair) {
+func (u *ShibaSwap) CalcPrice(calls []*multicall.Call, blockNumber uint64, pool *dt.Pool) (pair dt.Pair) {
 	if len(calls) == 0 || calls[0].Failed || calls[1].Failed {
 		return
 	}

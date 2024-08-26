@@ -233,12 +233,16 @@ func (m *monitor) checkEvent() {
 
 	var eventPools []dt.SimplePool
 	events, eventPools = m.filterLog(events)
+	if len(eventPools) < 1 {
+		return
+	}
 	m.logger.Info(fmt.Sprintf("有%d个事件需要计算套利。。。", len(events)))
 	// 获取事件相关所有池的价格
+	eventBlockNumber := events[0].BlockNumber
 	t = time.Now()
 	blockNumber := m.fetchPrice(eventPools)
 	m.logger.Info(fmt.Sprintf("获取事件相关交易对价格, 共用时: %s", time.Since(t)))
-	if blockNumber.Cmp(big.NewInt(0)) == 0 {
+	if blockNumber > eventBlockNumber || blockNumber == 0 {
 		return
 	}
 
@@ -246,14 +250,14 @@ func (m *monitor) checkEvent() {
 	ch := make(chan struct{}, m.cfg.MaxConcurrent)
 	for _, e := range eventPools {
 		ch <- struct{}{}
-		go func(event dt.SimplePool, bn *big.Int) {
+		go func(event dt.SimplePool, bn uint64) {
 			m.processEvent(event, bn)
 			<-ch
 		}(e, blockNumber)
 	}
 }
 
-func (m *monitor) fetchPrice(eventPools []dt.SimplePool) (blockNumber *big.Int) {
+func (m *monitor) fetchPrice(eventPools []dt.SimplePool) (blockNumber uint64) {
 	var pools []dt.Pool
 	for _, ep := range eventPools {
 		ps := m.database.GetPoolsByTokens([]string{ep.Token0, ep.Token1})
@@ -312,7 +316,7 @@ func (m *monitor) GetDex(poolAddr string) (IDex, *dt.Pool) {
 }
 
 // 根据策略处理事件
-func (m *monitor) processEvent(event dt.SimplePool, bn *big.Int) {
+func (m *monitor) processEvent(event dt.SimplePool, bn uint64) {
 	arbitrage, ok := m.handler.CalcArbitrage(m, event, bn, m.gasPrice*m.cfg.GasTimes)
 	if ok {
 		m.handler.Do(m, arbitrage)
@@ -560,7 +564,7 @@ func (m *monitor) SendToTG(msg string) {
 	}
 }
 
-func (m *monitor) UpdatePrice(pools []dt.Pool) (blockNumber *big.Int) {
+func (m *monitor) UpdatePrice(pools []dt.Pool) (blockNumber uint64) {
 	mcContract, err := multicall.NewContract(dex.BlockNumberABI, multicall.DefaultAddress)
 	if err != nil {
 		m.logger.Error("UpdatePrice 0:", err)
@@ -591,13 +595,13 @@ func (m *monitor) UpdatePrice(pools []dt.Pool) (blockNumber *big.Int) {
 
 	t := time.Now()
 	// results, err := m.multicall.Call(nil, calls...)
-	results, err := tools.ConcurrentMulticall(m.multicall, calls, 2000, m.Config().MaxConcurrent)
+	results, err := tools.ConcurrentMulticall(m.multicall, calls, m.Config().ChunkLength, m.Config().MaxConcurrent)
 	m.logger.Info(fmt.Sprintf("UpdatePrice Multicall调用, 共%d个Call, 共用时%s", len(calls), time.Since(t)))
 	if err != nil {
 		m.logger.Error("UpdatePrice 1:", err)
 		return
 	}
-	blockNumber = calls[0].Outputs.(*dt.ResBigInt).Int
+	blockNumber = calls[0].Outputs.(*dt.ResBigInt).Int.Uint64()
 	m.baseFee = calls[1].Outputs.(*dt.ResBigInt).Int
 	if startIndex > 2 {
 		bts := m.handler.GetBaseTokens()
@@ -617,7 +621,7 @@ func (m *monitor) UpdatePrice(pools []dt.Pool) (blockNumber *big.Int) {
 		d := m.dexs[p.Factory]
 		pcs := resCalls[i : i+d.PriceCallCount()]
 		wg.Add(1)
-		go func(res []*multicall.Call, p *dt.Pool, dd IDex, bn *big.Int) {
+		go func(res []*multicall.Call, p *dt.Pool, dd IDex, bn uint64) {
 			pair := dd.CalcPrice(res, bn, p)
 			taskChan <- pair
 			wg.Done()
@@ -768,6 +772,7 @@ func (m *monitor) Swap(client *ethclient.Client, params dt.SwapParams, traderCon
 		SellPool:   params.SellPool,
 		BaseToken:  params.BaseToken,
 		CreatedAt:  time.Now(),
+		EventBlock: params.BlockNumber,
 		Error:      errMsg,
 	})
 	return
@@ -836,8 +841,7 @@ func (m *monitor) DoSwap(params dt.SwapParams) {
 		testAddress := si.GetAddress(privateKey)
 		rpcURL := m.cfg.Rpcs.Http
 		port := si.RandomPort()
-		block := params.Deadline
-		si.StartAnvil(ctx, rpcURL, block-1, port)
+		si.StartAnvil(ctx, rpcURL, params.BlockNumber, port)
 		defer cancel()
 		si.WaitForAnvil(port)
 
@@ -889,6 +893,6 @@ func (m *monitor) caclIncome(client *ethclient.Client, traderContract string, co
 	return
 }
 
-func (m *monitor) TestEvent(eventPool dt.SimplePool, blockNumber *big.Int) {
+func (m *monitor) TestEvent(eventPool dt.SimplePool, blockNumber uint64) {
 	m.processEvent(eventPool, blockNumber)
 }

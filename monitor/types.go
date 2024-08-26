@@ -20,14 +20,14 @@ type IDex interface {
 	GetTopic() common.Hash
 	GetAbi() *abi.ABI
 	// 存储价格
-	SavePair(pool *dt.Pool, price *big.Float, reserve0, reserve1, blockNumber *big.Int, fee float64) dt.Pair
-	CreatePair(pool *dt.Pool, price *big.Float, reserve0, reserve1, blockNumber *big.Int, fee float64) dt.Pair
+	SavePair(pool *dt.Pool, price *big.Float, reserve0, reserve1 *big.Int, blockNumber uint64, fee float64) dt.Pair
+	CreatePair(pool *dt.Pool, price *big.Float, reserve0, reserve1 *big.Int, blockNumber uint64, fee float64) dt.Pair
 
 	//创建查询链上价格数据的Call
 	CreatePriceCall(pool *dt.Pool) []*multicall.Call
 	// 根据链上数据计算价格,如何已经完成计算不需要获取链上数据时返回true
 	// 统一以token1除以token0表示价格
-	CalcPrice(calls []*multicall.Call, blockNumber *big.Int, pool *dt.Pool) dt.Pair
+	CalcPrice(calls []*multicall.Call, blockNumber uint64, pool *dt.Pool) dt.Pair
 
 	PriceCallCount() int
 	// 获取传给合约的交易池类型,1是UniswapV3,2是UniswapV2

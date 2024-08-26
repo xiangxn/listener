@@ -96,17 +96,17 @@ func (d *Dex) GetName() string       { return d.Name }
 func (d *Dex) GetTopic() common.Hash { return d.Topic }
 func (d *Dex) GetAbi() *abi.ABI      { return d.Abi }
 func (d *Dex) GetType() uint8        { return 1 }
-func (d *Dex) SavePair(pool *dt.Pool, price *big.Float, reserve0, reserve1, blockNumber *big.Int, fee float64) dt.Pair {
+func (d *Dex) SavePair(pool *dt.Pool, price *big.Float, reserve0, reserve1 *big.Int, blockNumber uint64, fee float64) dt.Pair {
 	db := d.monitor.DB()
 	return db.SavePair(pool, price, reserve0, reserve1, blockNumber, fee, d.GetName())
 }
-func (d *Dex) CreatePair(pool *dt.Pool, price *big.Float, reserve0, reserve1, blockNumber *big.Int, fee float64) (pair dt.Pair) {
+func (d *Dex) CreatePair(pool *dt.Pool, price *big.Float, reserve0, reserve1 *big.Int, blockNumber uint64, fee float64) (pair dt.Pair) {
 	pair.Pool = pool.Address
 	pair.Symbol = fmt.Sprintf("%s/%s", pool.Token0.Symbol, pool.Token1.Symbol)
 	pair.Price = tools.ConvertTOFloat64(price)
 	pair.Reserve0 = tools.BigIntToFloat64(reserve0, pool.Token0.Decimals)
 	pair.Reserve1 = tools.BigIntToFloat64(reserve1, pool.Token1.Decimals)
-	pair.BlockNumber = int32(blockNumber.Int64())
+	pair.BlockNumber = blockNumber
 	pair.Token0 = pool.Token0.Address
 	pair.Token1 = pool.Token1.Address
 	pair.Fee = fee
@@ -123,7 +123,7 @@ func (d *Dex) CreatePriceCall(pool *dt.Pool) (calls []*multicall.Call) {
 	return
 }
 
-func (d *Dex) CalcPrice(calls []*multicall.Call, blockNumber *big.Int, pool *dt.Pool) (pair dt.Pair) {
+func (d *Dex) CalcPrice(calls []*multicall.Call, blockNumber uint64, pool *dt.Pool) (pair dt.Pair) {
 	if len(calls) == 0 || calls[0].Failed {
 		return
 	}
@@ -257,7 +257,7 @@ func PreprocessEvent(m dt.IMonitor, factorys []string, logs []types.Log) (result
 
 // 批量从链上获取池信息(包括token信息)
 func BatchPool(m dt.IMonitor, pools []string, factorys []string) (failPool []string) {
-	chunk := pie.Chunk(pools, m.Config().ChunkLength)
+	chunk := pie.Chunk(pools, m.Config().PoolChunkLength)
 	var wg sync.WaitGroup
 	taskChan := make(chan []string)
 	concurrent := make(chan struct{}, m.Config().MaxConcurrent)

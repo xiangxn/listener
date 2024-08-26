@@ -59,6 +59,8 @@ type Configuration struct {
 	BaseMinReserve float64 `json:"base_min_reserve" yaml:"base_min_reserve"`
 	// 对批量请求分组时分组的大小
 	ChunkLength int `json:"chunk_length" yaml:"chunk_length"`
+	// 对请求的池数据分组的大小
+	PoolChunkLength int `json:"pool_chunk_length" yaml:"pool_chunk_length"`
 	// 最大并发数据
 	MaxConcurrent int `json:"max_concurrent" yaml:"max_concurrent"`
 	// 最小收益,以USD计算

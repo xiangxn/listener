@@ -35,7 +35,7 @@ func (u *SolidlyV3) CreatePriceCall(pool *dt.Pool) (calls []*multicall.Call) {
 	return
 }
 
-func (u *SolidlyV3) CalcPrice(calls []*multicall.Call, blockNumber *big.Int, pool *dt.Pool) (pair dt.Pair) {
+func (u *SolidlyV3) CalcPrice(calls []*multicall.Call, blockNumber uint64, pool *dt.Pool) (pair dt.Pair) {
 	if len(calls) == 0 || calls[0].Failed || calls[1].Failed || calls[2].Failed {
 		return
 	}

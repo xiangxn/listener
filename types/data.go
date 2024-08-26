@@ -30,7 +30,7 @@ type Pair struct {
 	Price       float64 `bson:"price"`
 	Reserve0    float64 `bson:"reserve0"`
 	Reserve1    float64 `bson:"reserve1"`
-	BlockNumber int32   `bson:"blockNumber"`
+	BlockNumber uint64  `bson:"blockNumber"`
 	Token0      string  `bson:"token0"`
 	Token1      string  `bson:"token1"`
 	DexName     string  `bson:"dexName"`
@@ -77,6 +77,7 @@ type Transaction struct {
 	UseGas     uint64    `bson:"use_gas,omitempty"`
 	GasPrice   uint64    `bson:"gas_price"`
 	BaseToken  string    `bson:"base_token"`
+	EventBlock uint64    `bson:"event_block"`
 	CreatedAt  time.Time `bson:"created_at"`
 	Error      string    `bson:"error"`
 }

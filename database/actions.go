@@ -109,7 +109,7 @@ func (a Actions) SaveTransaction(tx dt.Transaction) {
 	defer cancel()
 	_, err := a.DB.Collection(TABLE_TRANSACTION).InsertOne(ctx, tx)
 	if err != nil {
-		a.Logger.WithField(FieldTag, "DoSwap").Error(err)
+		a.Logger.WithField(FieldTag, "SaveTransaction").Error(err)
 	}
 }
 
@@ -137,7 +137,7 @@ func (a Actions) SavePairs(pairs []dt.Pair) {
 	}
 }
 
-func (a Actions) SavePair(pool *dt.Pool, price *big.Float, reserve0, reserve1, blockNumber *big.Int, fee float64, dexName string) (pair dt.Pair) {
+func (a Actions) SavePair(pool *dt.Pool, price *big.Float, reserve0, reserve1 *big.Int, blockNumber uint64, fee float64, dexName string) (pair dt.Pair) {
 	ctx, cancel := context.WithCancel(a.Mctx)
 	defer cancel()
 
@@ -146,7 +146,7 @@ func (a Actions) SavePair(pool *dt.Pool, price *big.Float, reserve0, reserve1, b
 	pair.Price = tools.ConvertTOFloat64(price)
 	pair.Reserve0 = tools.BigIntToFloat64(reserve0, pool.Token0.Decimals)
 	pair.Reserve1 = tools.BigIntToFloat64(reserve1, pool.Token1.Decimals)
-	pair.BlockNumber = int32(blockNumber.Int64())
+	pair.BlockNumber = blockNumber
 	pair.Token0 = pool.Token0.Address
 	pair.Token1 = pool.Token1.Address
 	pair.Fee = fee

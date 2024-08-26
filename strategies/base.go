@@ -3,7 +3,6 @@ package strategies
 import (
 	"fmt"
 	"log"
-	"math/big"
 	"sort"
 	"strings"
 
@@ -90,7 +89,7 @@ func (m *MovingBrick) GetBaseToken(token0, token1 string) string {
 	return ""
 }
 
-func (m *MovingBrick) CalcArbitrage(monitor dt.IMonitor, event dt.SimplePool, blockNumber *big.Int, gasPrice float64) (arbitrage *dt.Arbitrage, ok bool) {
+func (m *MovingBrick) CalcArbitrage(monitor dt.IMonitor, event dt.SimplePool, blockNumber uint64, gasPrice float64) (arbitrage *dt.Arbitrage, ok bool) {
 	baseToken := m.GetBaseToken(event.Token0, event.Token1)
 	if baseToken == "" {
 		monitor.Logger().Debug(fmt.Sprintf(`There is no "basetoken" in the trading pair: %s %s/%s`, event.Address, event.Token0, event.Token1))
@@ -162,7 +161,7 @@ func (m *MovingBrick) CalcArbitrage(monitor dt.IMonitor, event dt.SimplePool, bl
 		}).Info("发现可套利交易")
 
 		arbitrage = new(dt.Arbitrage)
-		arbitrage.BlockNumber = uint64(blockNumber.Int64())
+		arbitrage.BlockNumber = blockNumber
 		arbitrage.Amount = amount
 		arbitrage.BuyPool = *buyPool
 		arbitrage.SellPool = *sellPool
@@ -215,16 +214,17 @@ func (m *MovingBrick) Do(monitor dt.IMonitor, arbitrage *dt.Arbitrage) {
 		arbitrage.BuyPool.Pool, arbitrage.SellPool.Pool))
 
 	params := dt.SwapParams{
-		BuyPool:   arbitrage.BuyPool.Pool,
-		SellPool:  arbitrage.SellPool.Pool,
-		Amount:    arbitrage.Amount,
-		Deadline:  arbitrage.BlockNumber + 1,
-		BuyFee:    uint16(arbitrage.BuyPool.Fee * 1e4),
-		SellFee:   uint16(arbitrage.SellPool.Fee * 1e4),
-		GasPrice:  arbitrage.GasPrice,
-		Borrow:    arbitrage.Borrow,
-		BaseToken: arbitrage.BaseToken,
-		Position:  arbitrage.Position,
+		BuyPool:     arbitrage.BuyPool.Pool,
+		SellPool:    arbitrage.SellPool.Pool,
+		Amount:      arbitrage.Amount,
+		BlockNumber: arbitrage.BlockNumber,
+		Deadline:    arbitrage.BlockNumber + 1,
+		BuyFee:      uint16(arbitrage.BuyPool.Fee * 1e4),
+		SellFee:     uint16(arbitrage.SellPool.Fee * 1e4),
+		GasPrice:    arbitrage.GasPrice,
+		Borrow:      arbitrage.Borrow,
+		BaseToken:   arbitrage.BaseToken,
+		Position:    arbitrage.Position,
 	}
 	monitor.DoSwap(params)
 }
