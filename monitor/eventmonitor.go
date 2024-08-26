@@ -372,7 +372,7 @@ func (m *monitor) ConfirmingTransaction() {
 					} else {
 						_, revertMsg := si.GetRevert(m.ctx, mo.httpClient, receipt, nil)
 						mo.DB().UpdateTransaction(txr.Tx, true, receipt.GasUsed, receipt.EffectiveGasPrice.Uint64(), income, false, revertMsg)
-						// m.checkFailTx(txr.BuyPool, txr.SellPool)
+						m.checkFailTx(txr.BuyPool, txr.SellPool, revertMsg)
 					}
 				}
 				<-concurrent
@@ -808,11 +808,11 @@ func (m *monitor) sendPrivateTransaction(ctx context.Context, signedTx *types.Tr
 
 // 在数据库中检查失败的交易，如果失败次数>=1就把池加入黑名单
 func (m *monitor) checkFailTx(buyPool, sellPool, errMsg string) {
-	if errMsg == "D" || errMsg == "" { //只是调用过期的不处理
+	if errMsg == "D" || errMsg == "execution reverted: D" || errMsg == "" { //只是调用过期的不处理
 		return
 	}
 	baseCount := 1
-	if errMsg == "E" { //只是套利失败的,需要两次失败才加入黑名单
+	if errMsg == "E" || errMsg == "execution reverted: E" { //只是套利失败的,需要两次失败才加入黑名单
 		baseCount = 2
 	}
 	// 其他错误一律加入黑名单
