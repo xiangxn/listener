@@ -31,4 +31,4 @@ echo "$BYTECODE" > "${CONTRACT_NAME}.bin"
 # 使用abigen生成Go文件
 $GOPATH/abigen --abi="${CONTRACT_NAME}.abi" --bin="${CONTRACT_NAME}.bin" --pkg=trader --out="trader/Trader.go"
 
-echo "Go binding file ${CONTRACT_NAME}.go has been generated."
+echo "Go binding file Trader.go has been generated."

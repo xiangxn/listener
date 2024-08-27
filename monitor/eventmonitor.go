@@ -241,7 +241,7 @@ func (m *monitor) checkEvent() {
 	eventBlockNumber := events[0].BlockNumber
 	t = time.Now()
 	blockNumber := m.fetchPrice(eventPools)
-	m.logger.Info(fmt.Sprintf("获取事件相关交易对价格, 共用时: %s", time.Since(t)))
+	m.logger.Info(fmt.Sprintf("获取事件相关交易对价格[%d]个, 共用时: %s", len(eventPools), time.Since(t)))
 	if blockNumber > eventBlockNumber || blockNumber == 0 {
 		return
 	}
@@ -258,14 +258,16 @@ func (m *monitor) checkEvent() {
 }
 
 func (m *monitor) fetchPrice(eventPools []dt.SimplePool) (blockNumber uint64) {
-	var pools []dt.Pool
+	var tokens []string
+	// t := time.Now()
 	for _, ep := range eventPools {
-		ps := m.database.GetPoolsByTokens([]string{ep.Token0, ep.Token1})
-		if len(ps) >= 2 { //如果只有单个池子则不更新价格
-			pools = append(pools, ps...)
-		}
+		tokens = append(tokens, ep.Token0, ep.Token1)
 	}
-	return m.UpdatePrice(pools)
+	tokens = pie.Unique(tokens) // 去重
+	pools := m.database.GetPoolsByTokens(tokens)
+	// m.logger.Info(fmt.Sprintf("更新价格, 共用时: %s", time.Since(t)))
+	blockNumber = m.UpdatePrice(pools)
+	return
 }
 
 // 所有事件中，如果token0,token1一致，如eth/usdt,usdt/eth,只保留一个Log
@@ -601,6 +603,7 @@ func (m *monitor) UpdatePrice(pools []dt.Pool) (blockNumber uint64) {
 		m.logger.Error("UpdatePrice 1:", err)
 		return
 	}
+	// t = time.Now()
 	blockNumber = calls[0].Outputs.(*dt.ResBigInt).Int.Uint64()
 	m.baseFee = calls[1].Outputs.(*dt.ResBigInt).Int
 	if startIndex > 2 {
@@ -637,6 +640,7 @@ func (m *monitor) UpdatePrice(pools []dt.Pool) (blockNumber uint64) {
 		pairs = append(pairs, pair)
 	}
 	m.database.SavePairs(pairs)
+	// m.logger.Info(fmt.Sprintf("UpdatePrice 计算存储, 共用时%s", time.Since(t)))
 	return
 }
 

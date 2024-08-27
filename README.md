@@ -37,6 +37,32 @@ db.prices.aggregate([{$group:{_id:"$pool",count:{$sum:1}}},{$match:{count:{$gt:1
 db.transactions.aggregate([{$match:{buy_pool:"",sell_pool:""}},{$group:{_id:null,maxValue: { $max: "$use_gas" },minValue: { $min: "$use_gas" }}}])
 
 db.transactions.find().sort({created_at:-1}).limit(2)
+
+db.pools.aggregate([
+    {$match:{token0:{$in:["0x2Bf83D080d8Bc4715984e75E5b3D149805d11751","0x55d398326f99059fF775485246999027B3197955"]},token1:{$in:["0x2Bf83D080d8Bc4715984e75E5b3D149805d11751","0x55d398326f99059fF775485246999027B3197955"]}}},
+    {
+        $lookup:{
+            from: "tokens",
+            localField: "token0",
+            foreignField: "address",
+            as: "token0_d"
+        }
+    },
+    {
+        $unwind: "$token0_d"
+    },
+    {
+        $lookup:{
+            from: "tokens",
+            localField: "token1",
+            foreignField: "address",
+            as: "token1_d"
+        }
+    },
+    {
+        $unwind: "$token1_d"
+    }
+])
 ```
 
 #### 7.一些池地址

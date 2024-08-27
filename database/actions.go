@@ -253,6 +253,42 @@ func (a Actions) GetPoolsByTokens(tokens []string) (pools []dt.Pool) {
 	ctx, cancel := context.WithCancel(a.Mctx)
 	defer cancel()
 
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{"token0": bson.M{"$in": tokens}, "token1": bson.M{"$in": tokens}}}},
+		{{Key: "$lookup", Value: bson.M{
+			"from":         "tokens",
+			"localField":   "token0",
+			"foreignField": "address",
+			"as":           "token0",
+		}}},
+		{{Key: "$unwind", Value: "$token0"}},
+		{{Key: "$lookup", Value: bson.M{
+			"from":         "tokens",
+			"localField":   "token1",
+			"foreignField": "address",
+			"as":           "token1",
+		}}},
+		{{Key: "$unwind", Value: "$token1"}},
+	}
+	cursor, err := a.DB.Collection(TABLE_POOL).Aggregate(ctx, pipeline)
+	if err != nil {
+		a.Logger.Error("GetPoolsByTokens error: ", err)
+		return
+	}
+	defer cursor.Close(ctx)
+
+	err = cursor.All(ctx, &pools)
+	if err != nil {
+		a.Logger.Error("GetPoolsByTokens error: ", err)
+	}
+	return
+}
+
+// 性能低下, 暂时已经弃用
+func (a Actions) GetPoolsByTokens2(tokens []string) (pools []dt.Pool) {
+	ctx, cancel := context.WithCancel(a.Mctx)
+	defer cancel()
+
 	filter := bson.M{"token0": bson.M{"$in": tokens}, "token1": bson.M{"$in": tokens}}
 	cursor, err := a.DB.Collection(TABLE_POOL).Find(ctx, filter)
 	if err != nil {
