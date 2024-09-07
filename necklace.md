@@ -46,7 +46,7 @@ An EVM-based on-chain arbitrage framework implemented in Golang. Independent des
   March 2017 - February 2019  
   Developed the frontend UI for a Bitshares wallet.
 
-- **YOYOE**  
+- **YOYOW**  
   *CTO*  
   October 2015 - August 2018  
   Involved in the development of blockchain content chains.
