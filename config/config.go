@@ -25,10 +25,8 @@ type Configuration struct {
 	NetName string `json:"net_name" yaml:"net_name"`
 	Dburl   string `json:"dburl" yaml:"dburl"`
 	Rpcs    struct {
-		// 合适的值:["","alchemy","flashbot"]
-		Flashbots string   `json:"flashbots" yaml:"flashbots"`
-		Http      string   `json:"http" yaml:"http"`
-		Ws        []string `json:"ws" yaml:"ws"`
+		Http string   `json:"http" yaml:"http"`
+		Ws   []string `json:"ws" yaml:"ws"`
 	} `json:"rpcs" yaml:"rpcs"`
 	Simulation struct {
 		// 是否开起模拟交易
@@ -55,6 +53,8 @@ type Configuration struct {
 	EIP1559  bool    `json:"eip1559" yaml:"eip1559"`
 	// 交易合约地址
 	TraderContract string `json:"trader_contract" yaml:"trader_contract"`
+	// 区块浏览器地址(用于 Telegram 里的链接, 如 https://robinhoodchain.blockscout.com)
+	Explorer string `json:"explorer" yaml:"explorer"`
 	//基础token的最小储备量，如ETH
 	BaseMinReserve float64 `json:"base_min_reserve" yaml:"base_min_reserve"`
 	// 对批量请求分组时分组的大小

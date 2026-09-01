@@ -22,14 +22,12 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/xiangxn/go-multicall"
 
 	"github.com/xiangxn/listener/config"
 	"github.com/xiangxn/listener/database"
 	"github.com/xiangxn/listener/dex"
-	"github.com/xiangxn/listener/flashbots"
 	si "github.com/xiangxn/listener/simulation"
 	"github.com/xiangxn/listener/tools"
 	dt "github.com/xiangxn/listener/types"
@@ -384,7 +382,7 @@ func (m *monitor) ConfirmingTransaction() {
 				<-concurrent
 			}(m, tx)
 		}
-		time.Sleep(20 * time.Second) //20秒处理一次
+		time.Sleep(3 * time.Second) // 3秒处理一次(100ms出块的链上确认很快, 原20s太慢)
 	}
 }
 
@@ -460,23 +458,6 @@ func (m *monitor) GetPrivateKey() string {
 	m.privateKey = string(pk)
 	// m.cipher = [32]byte{}
 	return m.privateKey
-}
-func (m *monitor) GetSignKey() string {
-	if m.signKey != "" {
-		return m.signKey
-	}
-	m.signKey = os.Getenv("SIGN_WIF")
-	ciphertext, err := base32.StdEncoding.DecodeString(m.signKey)
-	if err != nil {
-		panic(fmt.Sprintln("Error base32 decode:", err))
-	}
-	pk, err := tools.Decrypt(ciphertext, m.cipher[:])
-	if err != nil {
-		panic(fmt.Sprintln("Error decrypting:", err))
-	}
-	m.signKey = string(pk)
-	// m.cipher = [32]byte{}
-	return m.signKey
 }
 func (m *monitor) GetHttpClient() *ethclient.Client {
 	return m.httpClient
@@ -742,23 +723,17 @@ func (m *monitor) Swap(client *ethclient.Client, params dt.SwapParams, traderCon
 
 	ok := true
 	confirm := false
-	if simulation {
-		err = client.SendTransaction(ctx, signedTx)
-	} else {
-		switch m.cfg.Rpcs.Flashbots {
-		case "alchemy":
-			err = m.sendPrivateTransaction(ctx, signedTx, params.Deadline, m.cfg.Rpcs.Http)
-		case "flashbot":
-			err = m.sendPrivateTransaction(ctx, signedTx, params.Deadline, "")
-		default:
-			err = client.SendTransaction(ctx, signedTx)
-		}
-	}
+	// Robinhood Chain 无 mempool/Flashbots relay，交易直接发送（由 sequencer 排序）
+	err = client.SendTransaction(ctx, signedTx)
 	errMsg := ""
 
 	if err != nil {
 		if strings.Contains(err.Error(), "insufficient funds for gas *") {
-			go m.SendToTG(fmt.Sprintf("机器人余额不足: \nhttps://etherscan.io/address/%s", fromAddress))
+			explorer := m.cfg.Explorer
+			if explorer == "" {
+				explorer = "https://etherscan.io"
+			}
+			go m.SendToTG(fmt.Sprintf("机器人余额不足: \n%s/address/%s", explorer, fromAddress))
 		}
 		m.Logger().WithField(FieldTag, "Swap4").Error(err)
 		ok = false
@@ -780,39 +755,6 @@ func (m *monitor) Swap(client *ethclient.Client, params dt.SwapParams, traderCon
 		Error:      errMsg,
 	})
 	return
-}
-
-func (m *monitor) sendPrivateTransaction(ctx context.Context, signedTx *types.Transaction, maxBlock uint64, url string) error {
-	data, err := signedTx.MarshalBinary()
-	if err != nil {
-		return err
-	}
-	param := flashbots.ParamsPrivateTransaction{
-		Tx:             hexutil.Encode(data),
-		MaxBlockNumber: fmt.Sprintf("0x%x", maxBlock),
-	}
-	param.Preferences.Fast = true
-	// param.Preferences.Privacy.Builders = []string{"flashbots", "beaverbuild.org", "f1b.io", "rsync", "builder0x69", "Titan", "EigenPhi", "BTCS", "JetBuilder"}
-
-	privateKey := si.GetPrivateKey(m.GetSignKey())
-	fromAddress := si.GetAddress(privateKey)
-	resp, err := flashbots.FlashbotRequest(ctx, privateKey, &fromAddress, url, "eth_sendPrivateTransaction", param)
-	if err != nil {
-		return errors.Wrap(err, "flashbot private TX request")
-	}
-
-	rr := &flashbots.SendPrivateTransactionResponse{}
-
-	err = json.Unmarshal(resp, rr)
-	if err != nil {
-		return errors.Wrapf(err, "unmarshal flashbot response:%v", string(resp))
-	}
-	if rr.Error.Code != 0 {
-		errStr := fmt.Sprintf("flashbot request returned an error:%+v,%v block:%v", rr.Error, rr.Message, maxBlock)
-		return errors.New(errStr)
-	}
-
-	return nil
 }
 
 // 在数据库中检查失败的交易，如果失败次数>=1就把池加入黑名单

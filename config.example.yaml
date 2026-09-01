@@ -1,9 +1,9 @@
 net_name: bsc
 dburl: mongodb://localhost:27017
 rpcs:
-    flashbots: ""
     http: https://bsc-dataseed.defibit.io
     ws: wss://bsc.blockpi.network/v1/ws/<key>
+explorer: https://bscscan.com
 simulation:
     enable: true
     funds: 0x98cF4F4B03a4e967D54a3d0aeC9fCA90851f2Cca
