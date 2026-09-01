@@ -36,19 +36,21 @@
 
 ```mermaid
 flowchart LR
-    A[WS 订阅 Swap 事件] -->|缓存去重 map[poolAddr]Log| B{定时器 EventWaitingTime}
+    A[WS 订阅 Swap 事件] -->|缓存去重, 同池只保留最后事件| B{定时器 EventWaitingTime 到期}
     B --> C[预处理<br/>新池/新Token 走 Multicall 拉取入库]
     C --> D[过滤黑名单<br/>pool/token 黑名单]
     D --> E[按事件 Token 查库获取相关池]
     E --> F[Multicall 批量刷新价格<br/>+ 区块号 + basefee + 合约余额]
     F -->|价格与事件同区块| G[策略 MovingBrick<br/>计算套利收益]
-    G -->|profit > MinProfitUSD| H[TG 通知]
-    H --> I{simulation.enable?}
-    I -->|是| J[Anvil 分叉模拟交易<br/>部署Trader→验证收益]
-    I -->|否| K[真实交易<br/>直接发送/Flashbots]
-    J & K --> L[(MongoDB<br/>tokens/pools/prices/transactions)]
-    L --> M[后台协程每20s确认交易<br/>回写 gas/income, 失败→黑名单]
+    G -->|profit 大于 MinProfitUSD| H[TG 通知]
+    H --> I{simulation.enable ?}
+    I -->|是| J[Anvil 分叉模拟交易<br/>部署Trader, 验证收益]
+    I -->|否| K[真实交易<br/>直接发送 / Flashbots 私有交易]
+    J & K --> L[(MongoDB<br/>tokens / pools / prices / transactions)]
+    L --> M[后台协程每20s确认交易<br/>回写 gas/income, 失败进入黑名单]
 ```
+
+> 注：mermaid 的边标签（`-->|...|`）内不能包含 `[` `]` `{` `}` 等符号，否则解析报错（GitHub 与 mermaid.live 一致）；如需在边标签中显示此类内容，请用引号包裹：`-->|"map[poolAddr]Log"|`。
 
 ## 二、目录结构
 
