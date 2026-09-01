@@ -6,6 +6,7 @@ import {Trader} from "../src/Trader.sol";
 
 // forge script --chain sepolia script/Trader.s.sol:TraderScript --rpc-url $RPC_TESTNET --broadcast -vvvv
 // forge script --chain mainnet script/Trader.s.sol:TraderScript --rpc-url $RPC_MAINNET --gas-price 3600000000 --broadcast -vvvv
+// forge script --chain robinhood script/Trader.s.sol:TraderScript --rpc-url $RPC_ROBINHOOD --broadcast -vvvv
 contract TraderScript is Script {
     function setUp() public {}
 

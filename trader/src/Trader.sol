@@ -48,8 +48,6 @@ contract Trader is
     /// @dev The maximum value that can be returned from #getSqrtRatioAtTick. Equivalent to getSqrtRatioAtTick(MAX_TICK)
     uint160 internal constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970342;
 
-    address public immutable factoryUniswapV3 = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-
     address private lastCalledPool;
 
     bool private hasBorrow = false;
@@ -207,9 +205,10 @@ contract Trader is
         if (amountMin > 0) {
             TransferHelper.safeTransfer(decoded.baseToken, msg.sender, amountMin);
         }
-        sendfee(
-            decoded.baseToken, LowGasSafeMath.sub(balanceAfter, amountMin), LowGasSafeMath.sub(balanceBefore, amountMin)
-        );
+        // 净利润 = balanceAfter - balanceBefore (余额差与还款无关);
+        // 原实现 sub(balanceBefore, amountMin) 在借款池 fee>0 时必然下溢 panic(0x11)
+        uint256 profit = LowGasSafeMath.sub(balanceAfter, balanceBefore);
+        sendfee(decoded.baseToken, profit, 0);
         hasBorrow = false;
     }
 
