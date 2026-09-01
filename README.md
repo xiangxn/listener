@@ -139,7 +139,7 @@ getBlockNumber  +  getBasefee  +  Trader合约各baseToken余额  +  每个池�
 
 ### 5. 交易执行
 
-- **模拟模式**（`simulation.enable: true`）：用 Anvil 在**事件所在区块**分叉链（[simulation.go:53](simulation/simulation.go#L53)）→ 冒充大额账户给测试地址转 ETH → 部署 Trader 合约并转入 0.1 base token → 发送交易 → 轮询回执、计算收益、失败取 revert 原因。`Deadline` 自动 +3 块补偿 Anvil 自动挖矿。
+- **模拟模式**（`simulation.enable: true`）：用 Anvil 在**事件所在区块**分叉链（[simulation.go:53](simulation/simulation.go#L53)）→ 冒充大额账户给测试地址转 ETH → **在分叉上部署 Trader 合约临时副本**（非真实链）并转入 0.1 base token → 发送交易 → 轮询回执、计算收益、失败取 revert 原因。`Deadline` 自动 +3 块补偿 Anvil 自动挖矿。此模式**不需要在真实链上部署 Trader**，详见「十三、纸面交易」。
 - **真实模式**：按配置走 普通发送 / Alchemy 私有交易 / Flashbots 私有交易（`rpcs.flashbots`，[eventmonitor.go:785](monitor/eventmonitor.go#L785)），交易记录先落库，由后台协程确认。
 
 ### 6. 交易确认与失败处理
@@ -331,3 +331,54 @@ address public immutable borrowPool2 = 0xf2688Fb5B81049DFB7703aDa5e770543770612C
 - **新增 DEX**：在 [abis/](abis/) 放 ABI → 在 [dex/](dex/) 实现 `IDex` 接口（`GetType/GetName/GetTopic/CreatePriceCall/CalcPrice/PriceCallCount`，V2 类可复用 [dex/base.go](dex/base.go) 默认实现）→ 在 [monitor/eventmonitor.go:127](monitor/eventmonitor.go#L127) 的 switch 注册 → 配置 `dexs` 列表 → 若池类型非 V2，在 `Trader.sol` 中实现对应回调并在 `_swap` 分发。
 - **新增策略**：实现 `types.EventHandler` 接口（[types/interfaces.go:75](types/interfaces.go#L75)），在 [main.go:157](main.go#L157) 替换 `Handler`。
 - **新增借贷池类型**：Trader 合约只支持 UniswapV3 风格 flash 回调，其他借贷协议需在合约内扩展。
+
+## 十三、纸面交易（无需部署 Trader 合约）
+
+纸面交易 = 计算套利收益但不产生真实链上交易。支持两种方式，**都不需要在真实链上部署 Trader 合约**（模拟模式是在 Anvil 分叉上临时部署副本，分叉随进程销毁，不触碰真实链）。
+
+| | 方式一：纯观察模式 | 方式二：分叉模拟模式 |
+|---|---|---|
+| 配置 | `simulation.enable: false` + `trader_contract: ""` | `simulation.enable: true` + `simulation.funds` |
+| 需要 `trader/Trader.go` 绑定 | ❌ | ✅（`./BuildTraderToGo.sh` 生成） |
+| 需要 Anvil | ❌ | ✅ |
+| 真实链部署 Trader | ❌ | ❌（分叉上临时部署副本） |
+| 行为 | 算收益 + TG 通知，不发单不落库 | 分叉上完整执行 swap，结果落库（`simulation: true`） |
+| 查看结果 | Telegram 通知 | `./listener stats -M` |
+
+### 方式一：纯观察模式（最轻量）
+
+```yaml
+simulation:
+    enable: false
+trader_contract: ""   # 不配置合约地址
+```
+
+bot 正常订阅事件、刷新价格、跑策略、计算理论收益并发 Telegram 通知；`Swap()` 检测到 `trader_contract` 为空时直接跳过（[eventmonitor.go:661](monitor/eventmonitor.go#L661)，仅日志 `No arbitrage contract is configured.`），**不发送交易、不产生交易记录**。
+
+适用：验证配置与策略参数、统计真实市场套利机会频率、观察理论收益。无需安装 Anvil、无需编译 Trader.go。
+
+### 方式二：分叉模拟模式（完整执行链路）
+
+```yaml
+simulation:
+    enable: true
+    funds: 0x...       # 目标链上真实有余额的地址（模拟时 impersonate 转账用）
+```
+
+执行流程（[eventmonitor.go:841](monitor/eventmonitor.go#L841)）：
+
+1. 在**事件所在区块**用 Anvil 分叉目标链（fork 的 RPC 即 `rpcs.http`）
+2. impersonate `simulation.funds`，给测试地址转 1 ETH 作 gas
+3. **在分叉上部署 Trader 合约副本**（[simulation.go:308](simulation/simulation.go#L308)），转 0.1 base token 给它
+4. 用分叉客户端发送 swap 交易，轮询回执，计算收益或取 revert 原因
+5. 结果写入 MongoDB `transactions` 集合（带 `simulation: true` 标记），失败按与真实交易相同的规则进黑名单
+
+前提条件：
+
+- 本机安装 Foundry（`anvil`）与 `abigen`
+- 本地生成绑定文件：`./BuildTraderToGo.sh`（只编译合约生成 Go 绑定，**不部署任何合约**）
+- `simulation.funds` 必须是目标链上真实有余额的地址。Robinhood Chain 上可直接用大额 V3 池地址（如 USDG/WETH 0.01% 池 `0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca`，持 ~2071 WETH + ~6M USDG），impersonate 后即可转出
+
+### 什么时候才需要真实部署 Trader？
+
+只有**真实模式**（`simulation.enable: false` + `trader_contract: 0x部署地址`）才需要先在目标链上部署 Trader 合约（Foundry 脚本 [trader/script/Trader.s.sol](trader/script/Trader.s.sol)，部署后把地址填入配置）。纸面交易阶段完全不需要。
