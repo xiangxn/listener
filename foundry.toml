@@ -22,6 +22,8 @@ testnet = "${RPC_TESTNET}"
 mainnet = "${RPC_MAINNET}"
 base = "${RPC_BASE}"
 bsc = "${RPC_BSC}"
+robinhood = "${RPC_ROBINHOOD}"
+robinhood-testnet = "${RPC_ROBINHOOD_TESTNET}"
 
 
 

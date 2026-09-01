@@ -57,8 +57,20 @@
 
 ### 参考池（借 flash 款 / 模拟资金）
 
-- **USDG/WETH 0.01% V3 池** `0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca`：持 ~2071 WETH + ~6.0M USDG —— 可直接当 `simulation.funds`（Anvil impersonate 池地址即可，池本身可转出 token）和 borrow pool。
-- **USDG/WETH 0.05% V3 池** `0x16679e2ac1a798865ecf1c1639e67693ddb1c220`：第二大池，可作第二个 borrow pool。
+- **WETH/USDG 0.01% V3 池** `0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca`：**主力池**（近 1000 块 2954 笔 swap，全网最高），fee=100，t0=WETH t1=USDG，WETH 余额 ≈ 2550 —— 当 `simulation.funds`（Anvil impersonate 池地址即可）和 borrow pool。
+- **WETH/USDG 0.05% V3 池** `0x69bfaf19c9f377bb306a89aed9f6b07e2c1a8d9a`：同一工厂（0x1f7d7550），fee=500，WETH 余额 ≈ 532 —— 第二个 borrow pool / 套利对手池。
+- **WETH/USDG 0.3% V3 池** `0xa9188730fe85be88ad499d7d52b099e800fb0334`：同一工厂，fee=3000，当前区间流动性 ≈ 1.5e17（较薄，原始 WETH 余额 ≈ 0，套利前被大额卖出填充后可用）—— 套利对手池 / 测试砸盘对象。
+- ~~`0x16679e2a...`~~：⚠️ 早期 GeckoTerminal 数据误判为 Uni 0.05% 池；实际 `factory()` 返回 `0x1ac9db4a...`（**不是** Uni 工厂），是 45 字节 EIP-1167 代理池（实现 `0x11725976...`），fee 动态（60→53 变过）—— **不能作为 borrow pool，已从配置移除**。
+
+> ⚠️ **LOK 重入约束**：V3 `flash()` 期间池子持锁，**borrow 池不能与 buy/sell 池相同**（回调中再调同一池子 swap 会 revert "LOK"）。配置 borrow pools 时必须保证与套利路径池两两不同。
+
+> ⚠️ **实测价格修正**：当前链上价格 tick ≈ **-198306**（raw 价格 2.44e-9 = 十进制 2444 USDG/WETH）。早期记录"tick=-1"有误（来自其他池/读数），以本次实测为准。
+
+### 池子接口验证（2026-09-01 补充）
+
+- Robinhood 的 V3 池是**标准 UniswapV3Pool 接口**（`slot0()=0x3850c7bd`、`liquidity`、`swap(address,bool,int256,uint160,bytes)`、`flash(address,uint256,uint256,bytes)` 全部存在），但有 **fee-tweaker 扩展**：`setFee` 可用，**fee 是动态存储值**（uni 0.01% 池当前 fee=100，代理池曾为 60/53）→ bot 的 `CreatePriceCall` 每次刷新都调 `fee()` ✓ 无需改代码；**切勿硬编码费率**。
+- 反编译确认：池子 dispatcher 26 个函数 = 标准 V3 全函数 + `setFee` + `collectProtocol`；用 `cast disassemble`/selector 校验过。
+- **当前链上状态：各 WETH/USDG 池价格完全一致**（实测 tick ≈ -198306，1 WETH ≈ 2444 USDG），价差已被套利者抹平 → 实盘无稳定套利空间，策略主要靠事件驱动抓瞬时价差；fork 测试**不用 `vm.store` 改池子 slot0**（会破坏 tick/流动性区间一致性，导致输出爆炸），改为**真实砸盘**：prank 链上大户（如主力池自身 2550 WETH）转账 WETH → 大额真实卖出砸低 0.3% 池价格 → Trader flash 套利（详见 Phase 3 fork 测试）。
 
 ## 4. 移植工作清单（分阶段）
 
@@ -90,31 +102,32 @@ strategies:
     - WETH (0x0Bd7D...)      # decimals 18
     - USDG (0x5fc5360D...)   # decimals 6 —— 注意金额换算
   # borrow pools（支持 flash 的 V3 池）：
-  #   WETH → 0x52e65b17..., 0x16679e2a...
-  #   USDG → 0x52e65b17..., 0x16679e2a...
+  #   WETH → 0x52e65b17..., 0x69bfaf19...
+  #   USDG → 0x52e65b17..., 0x69bfaf19...
 simulation:
   funds: 0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca
 gas_price: 1e-09             # 当前 baseFee ~0.53 gwei，1 gwei 可行
 eip1559: false
 ```
 
-- [ ] 创建空的 `robinhood_pool_blacklist.json` / `robinhood_token_blacklist.json` / `robinhood_token_erc20a.json`
-- [ ] `foundry.toml` 加 `robinhood = ${RPC_ROBINHOOD}`（example.env 同步）
-- [ ] `event_waiting_time` 调小（100ms 区块下建议 50~100ms 起步，实盘观察后再调）
+- [x] 创建 `robinhood.config.yaml` + `robinhood_pool_blacklist.json` / `robinhood_token_blacklist.json` / `robinhood_token_erc20a.json`（空数组）
+- [x] `foundry.toml` 加 `robinhood = ${RPC_ROBINHOOD}`；`example.env` 同步 RPC_ROBINHOOD(_TESTNET)
+- [x] `event_waiting_time` 调小（100ms 区块下 100ms 起步，实盘观察后再调）
 
 ### Phase 2 — 代码微调（小改动）
 
-- [ ] `monitor/eventmonitor.go:761`：Telegram 里硬编码的 `etherscan.io` 链接 → 换成按 `net_name` 取 explorer（建议 config 增加 `explorer` 字段，robinhood → `robinhoodchain.blockscout.com`）
-- [ ] `rpcs.flashbots: ""`（无 relay，走普通发送）；确认代码里 flashbots 分支在配置为空时不激活
-- [ ] tx 确认轮询间隔从 20s 调小（~3~5s）
+- [x] `monitor/eventmonitor.go`：硬编码 `etherscan.io` 链接 → config 新增 `explorer` 字段（robinhood → `robinhoodchain.blockscout.com`）
+- [x] **删除 Flashbots 整套代码**（无 mempool/relay）：`flashbots/` 包删除、`rpcs.flashbots` 配置移除、`SendPrivateTransaction`/`GetSignKey` 移除，交易直接 `SendTransaction`（sequencer 排序）
+- [x] tx 确认轮询间隔 20s → 3s（100ms 出块，原 20s 太慢）
 - [ ] 可选二期：eth_getLogs 轮询 fallback（注意：该链 getLogs 有范围限制，50 万块范围即超时，轮询窗口需 ≤1 万块）；V4 adapter（PoolManager 已部署，memecoin 成交量主要在 V4，但工作量大，建议二期）
 
 ### Phase 3 — Trader 合约部署（Foundry）
 
-- [ ] 使用通用 **Trader.sol**（不用 BSCTrader.sol；Robinhood 上 borrow pool 用 Uniswap V3 池的 `flash()`，`IUniswapV3FlashCallback` 路径现成可用；PancakeV3 池走 type 3 回调，同样现成）
-- [ ] `foundry.toml` 加 `[rpc_endpoints] robinhood`；`Trader.s.sol` 部署注释/脚本补 robinhood
-- [ ] 新增 fork 测试 `RobinhoodTrader.t.sol`：fork 主网（或测试网）RPC，验证「flash 借 USDG → V3 买 → 另一池卖」全流程
-- [ ] `BuildTraderToGo.sh` 重新生成 `trader/Trader.go`（当前 repo 中缺失，模拟/主程序依赖此 binding）
+- [x] 使用通用 **Trader.sol**（V3 `flash()` + `IUniswapV3FlashCallback` 路径现成可用；池子接口已验证为标准 V3）
+- [x] `foundry.toml` 加 `[rpc_endpoints] robinhood`；`Trader.s.sol` 部署注释补 robinhood 命令
+- [x] 新增 fork 测试 `RobinhoodTrader.t.sol`：fork 主网 RPC，**真实砸盘制造价差**（prank 大户转账 WETH → 卖出 100 WETH 砸低 0.3% 池 → Trader flash 借 10 WETH → 主力池卖 → 砸盘池买回 → 还款 → 提款），2/2 测试通过。三池组合：borrow=0x69bfaf19 / sell=0x52e65b17 / buy=0xa9188730
+- [x] **修复 Trader.sol flash 回调下溢 bug**：原 `sendfee(after-min, before-min)` 中 `sub(balanceBefore, amountMin)` 在借款池 fee>0 时必然 panic(0x11)（before=借款额 < amount+fee）；改为 `profit = sub(balanceAfter, balanceBefore)`（与还款无关，纯利润）。BSC 老代码同样有隐患，独立分支直接修复
+- [x] `BuildTraderToGo.sh` 重新生成 `trader/Trader.go`（修复后字节码，abigen 1.17.5 生成，39KB，`go build ./...` 通过）
 - [ ] 先部署测试网（46630），验证后部署主网；部署地址记录到 README/部署文档
 
 ### Phase 4 — 测试验证

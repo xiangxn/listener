@@ -1,6 +1,6 @@
 # listener — EVM 链上套利监控框架
 
-基于 Golang 实现的 EVM 链上套利系统。通过 WebSocket 订阅多个 DEX 的 Swap 事件，实时抓取事件涉及交易对的链上价格，运行套利策略（默认「搬砖 MovingBrick」策略：同一交易对在不同池之间的价差套利），调用链上 `Trader` 合约完成交易（资金不足时自动走闪电贷），并支持 **Anvil 链上分叉模拟**、**Flashbots 私有交易**、Telegram 通知与 MongoDB 持久化。
+基于 Golang 实现的 EVM 链上套利系统。通过 WebSocket 订阅多个 DEX 的 Swap 事件，实时抓取事件涉及交易对的链上价格，运行套利策略（默认「搬砖 MovingBrick」策略：同一交易对在不同池之间的价差套利），调用链上 `Trader` 合约完成交易（资金不足时自动走闪电贷），并支持 **Anvil 链上分叉模拟**（不部署 Trader 即可纸面交易）、Telegram 通知与 MongoDB 持久化。
 
 ## 一、整体架构
 
@@ -28,7 +28,7 @@
 │                (Foundry 合约: 双腿Swap+闪电贷)                     │
 │                      │                                             │
 │                      ▼                                             │
-│           直接发送 / Alchemy / Flashbots 私有交易                   │
+│           直接发送(无 mempool, 由 sequencer 排序)                  │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -45,9 +45,9 @@ flowchart LR
     G -->|profit 大于 MinProfitUSD| H[TG 通知]
     H --> I{simulation.enable ?}
     I -->|是| J[Anvil 分叉模拟交易<br/>部署Trader, 验证收益]
-    I -->|否| K[真实交易<br/>直接发送 / Flashbots 私有交易]
+    I -->|否| K[真实交易<br/>直接发送]
     J & K --> L[(MongoDB<br/>tokens / pools / prices / transactions)]
-    L --> M[后台协程每20s确认交易<br/>回写 gas/income, 失败进入黑名单]
+    L --> M[后台协程每3s确认交易<br/>回写 gas/income, 失败进入黑名单]
 ```
 
 > 注：mermaid 的边标签（`-->|...|`）内不能包含 `[` `]` `{` `}` 等符号，否则解析报错（GitHub 与 mermaid.live 一致）；如需在边标签中显示此类内容，请用引号包裹：`-->|"map[poolAddr]Log"|`。
@@ -76,8 +76,6 @@ listener/
 │   └── base.go             # 默认策略 MovingBrick(价差搬砖), 实现 EventHandler 接口
 ├── simulation/
 │   └── simulation.go       # Anvil 分叉模拟: 起节点/冒充账户/部署合约/查回执/revert原因
-├── flashbots/
-│   └── flashbots.go        # Flashbots 私有交易 JSON-RPC 客户端
 ├── database/
 │   ├── mongo.go            # Mongo 客户端(全局单例)
 │   └── actions.go          # 数据访问层: 集合 tokens/pools/prices/transactions
@@ -140,7 +138,7 @@ getBlockNumber  +  getBasefee  +  Trader合约各baseToken余额  +  每个池�
 ### 5. 交易执行
 
 - **模拟模式**（`simulation.enable: true`）：用 Anvil 在**事件所在区块**分叉链（[simulation.go:53](simulation/simulation.go#L53)）→ 冒充大额账户给测试地址转 ETH → **在分叉上部署 Trader 合约临时副本**（非真实链）并转入 0.1 base token → 发送交易 → 轮询回执、计算收益、失败取 revert 原因。`Deadline` 自动 +3 块补偿 Anvil 自动挖矿。此模式**不需要在真实链上部署 Trader**，详见「十三、纸面交易」。
-- **真实模式**：按配置走 普通发送 / Alchemy 私有交易 / Flashbots 私有交易（`rpcs.flashbots`，[eventmonitor.go:785](monitor/eventmonitor.go#L785)），交易记录先落库，由后台协程确认。
+- **真实模式**：交易直接发送（Robinhood Chain 无公开 mempool、无 Flashbots relay，由 sequencer 排序，[eventmonitor.go:744](monitor/eventmonitor.go#L744)），交易记录先落库，由后台协程确认。
 
 ### 6. 交易确认与失败处理
 
@@ -183,9 +181,9 @@ swap() 传入: buyPool, sellPool, baseToken, borrowPool, amount, deadline,
 net_name: bsc                        # 网络名: 用于库名 <net_name>listener 和黑名单文件名
 dburl: mongodb://localhost:27017     # MongoDB 连接
 rpcs:
-    flashbots: ""                    # 私有交易通道: ""=普通发送, "alchemy"=Alchemy私有交易, "flashbot"=Flashbots
-    http: https://bsc-dataseed.defibit.io   # HTTP RPC(查询/发交易)
-    ws: wss://bsc.blockpi.network/v1/ws/<key>  # WS RPC(订阅事件, 可配多个自动故障转移)
+    http: https://rpc.mainnet.chain.robinhood.com   # HTTP RPC(查询/发交易)
+    ws: wss://robinhood-mainnet.g.alchemy.com/v2/<key>  # WS RPC(订阅事件, 可配多个自动故障转移)
+explorer: https://robinhoodchain.blockscout.com    # 区块浏览器(Telegram 余额不足告警里的链接)
 simulation:
     enable: true                     # 是否用 Anvil 分叉模拟交易
     funds: 0x98cF...                 # 模拟时冒充转账的大额账户(链上实际有钱的地址)
@@ -222,8 +220,7 @@ dexs:                                # 监听/支持的 DEX 列表(按需增删)
 | 变量 | 说明 |
 |---|---|
 | `PRIVATE_WIF` | 交易私钥（用 `listener crypto -E <hex私钥>` 加密后填入） |
-| `SIGN_WIF` | Flashbots 签名私钥（同上） |
-| `RPC_MAINNET` / `RPC_TESTNET` / `RPC_BASE` / `RPC_BSC` | RPC 地址（参考） |
+| `RPC_ROBINHOOD` | Robinhood Chain RPC 地址（供 foundry 测试/部署） |
 
 ```bash
 # 加密: 输入密码后输出 base32 密文, 填入 .env
@@ -238,6 +235,20 @@ dexs:                                # 监听/支持的 DEX 列表(按需增删)
 ```
 ./BuildTraderToGo.sh          # 默认编译 Trader 合约; 也可带合约名: ./BuildTraderToGo.sh BSCTrader
 ```
+
+##### Robinhood Chain 专属（分支 feat/robinhood-port）
+
+- **fork 测试**（验证 flash 借 + 套利全流程，含真实砸盘制造价差）：
+  ```bash
+  export RPC_ROBINHOOD=https://rpc.mainnet.chain.robinhood.com
+  forge test --match-path test/RobinhoodTrader.t.sol -vv
+  ```
+  测试说明：prank 链上大户（主力池自身 ~2550 WETH）转账 200 WETH → 真实卖出 100 WETH 砸低 0.3% 池价格 → Trader 用 0.05% 池 flash 借 10 WETH → 主力池卖出 → 砸盘池买回 → 还款 → 提款。**不要用 vm.store 改池子 slot0**（会破坏 tick/流动性一致性）。注意 **borrow 池不能与 buy/sell 池相同**（V3 flash 持锁，重入 revert "LOK"）。
+- **部署 Trader 到测试网/主网**（部署后地址填入 `robinhood.config.yaml` 的 `trader_contract`）：
+  ```bash
+  forge script --chain robinhood-testnet script/Trader.s.sol:TraderScript --rpc-url $RPC_ROBINHOOD_TESTNET --broadcast -vvvv
+  forge script --chain robinhood script/Trader.s.sol:TraderScript --rpc-url $RPC_ROBINHOOD --broadcast -vvvv
+  ```
 
 #### 2. 编译项目
 Mac 下直接 `go build`；编译 Linux 版本：
