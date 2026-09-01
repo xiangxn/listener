@@ -256,9 +256,9 @@ Mac 下直接 `go build`；编译 Linux 版本：
 ./build-linux.sh
 ```
 
-#### 3. 启动数据库（本机 MongoDB，数据目录 ~/work/mongodb）
+#### 3. 启动数据库（Docker 运行 MongoDB，数据目录 data/mongodb，停止后数据保留）
 ```
-./startdb.sh
+./startdb.sh        # 首次自动拉取 mongo:7.0 镜像; 重复执行幂等(容器已存在则直接 start)
 ```
 
 #### 4. 部署到服务器（可选，也可以本地运行）
