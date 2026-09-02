@@ -129,6 +129,31 @@ func Impersonate(port uint32, account string) {
 	fmt.Println("Impersonation successful for account:", account)
 }
 
+// 给指定地址注入 native 余额(单位: RBX/ETH 等, 按 1e18 wei 折算)。
+// 模拟盘上 impersonate 的池子/合约地址往往没有 native 余额, 不注资 cast send 会报 insufficient funds
+func SetBalance(port uint32, account string, amount float64) {
+	balance, _ := new(big.Float).Mul(big.NewFloat(amount), big.NewFloat(1e18)).Int(nil)
+	payload := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"method":  "anvil_setBalance",
+		"params":  []interface{}{account, "0x" + balance.Text(16)},
+		"id":      1,
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		log.Fatalf("Failed to marshal JSON payload: %v", err)
+	}
+	resp, err := http.Post(GetURL(port), "application/json", bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		log.Fatalf("Failed to send POST request: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		log.Fatalf("Unexpected status code: %v", resp.StatusCode)
+	}
+	fmt.Printf("SetBalance %s -> %v\n", account, amount)
+}
+
 // 停止冒充指定地址
 func StopImpersonate(port uint32, account string) {
 	payload := map[string]interface{}{

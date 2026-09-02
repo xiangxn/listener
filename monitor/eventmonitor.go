@@ -801,6 +801,9 @@ func (m *monitor) DoSwap(params dt.SwapParams) {
 		si.WaitForAnvil(port)
 
 		si.Impersonate(port, richAddress)
+		// 给冒充地址注入 native 手续费: funds 通常指向持币池/合约地址, 无 native 余额,
+		// 不注资则下面 cast send(转 ETH/转基础币给合约)会报 insufficient funds
+		si.SetBalance(port, richAddress, 100)
 		//给测试号一点eth
 		si.ImpersonateTransferETH(port, richAddress, testAddress.Hex(), 1)
 		// 在分叉上部署套利合约
