@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/base32"
 	"fmt"
+	"os"
 	"syscall"
 	"time"
 
@@ -23,19 +24,24 @@ import (
 
 var conf config.Configuration
 
+// loadConfig 读取 -c 指定的配置文件到全局 conf。
+// 挂在需要配置的子命令(arb/stats)上而不是根命令的 PersistentPreRun,
+// 否则 crypto 等与配置无关的命令也会强制加载配置而 panic(目录里没有 config.yaml 时)。
+func loadConfig(cmd *cobra.Command, args []string) {
+	configFile, _ := cmd.Flags().GetString("config")
+	conf = config.GetConfig(configFile)
+}
+
 func main() {
 	var rootCmd = &cobra.Command{
 		Use: "listener",
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			configFile, _ := cmd.Flags().GetString("config")
-			conf = config.GetConfig(configFile)
-		},
 	}
 	rootCmd.PersistentFlags().StringP("config", "c", "config.yaml", "Configuration file name")
 
 	var arbCmd = &cobra.Command{
 		Use:   "arb",
 		Short: "Arbitrage command",
+		PersistentPreRun: loadConfig,
 		Run: func(cmd *cobra.Command, args []string) {
 			arbitrage(conf)
 		},
@@ -44,6 +50,7 @@ func main() {
 	var statsCmd = &cobra.Command{
 		Use:   "stats",
 		Short: "statistics command",
+		PersistentPreRun: loadConfig,
 		Run: func(cmd *cobra.Command, args []string) {
 			day, _ := cmd.Flags().GetInt("day")
 			start, _ := cmd.Flags().GetString("start")
@@ -132,16 +139,20 @@ func statsFun(conf config.Configuration, day int, start, end string, simulate bo
 }
 
 func arbitrage(conf config.Configuration) {
-	fmt.Print("Enter password: ")
-	passwordBytes, err := term.ReadPassword(int(syscall.Stdin))
-	fmt.Println()
-	if err != nil {
-		fmt.Println("Error reading password:", err)
-		return
+	// 密码: 优先取 LISTENER_PASSWORD 环境变量(供 start.sh 一键后台启动), 否则交互输入
+	password := os.Getenv("LISTENER_PASSWORD")
+	if password == "" {
+		fmt.Print("Enter password: ")
+		passwordBytes, err := term.ReadPassword(int(syscall.Stdin))
+		fmt.Println()
+		if err != nil {
+			fmt.Println("Error reading password:", err)
+			return
+		}
+		password = string(passwordBytes)
 	}
-	password := string(passwordBytes)
 
-	err = godotenv.Load()
+	err := godotenv.Load()
 	if err != nil {
 		panic(err)
 	}

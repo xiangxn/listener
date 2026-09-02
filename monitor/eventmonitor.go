@@ -51,6 +51,10 @@ func createQuery(configEvents []config.DexConfig) ethereum.FilterQuery {
 	topics[0] = pie.Unique(topics[0])
 	query := ethereum.FilterQuery{
 		Topics: topics,
+		// Alchemy(Robinhood Chain 官方推荐 WS)要求 logs 订阅必须带 address 字段,
+		// 只有 topics 会被拒: "Invalid logs options in second param to eth_subscribe"
+		// 空数组 = 订阅全部合约地址(与不过滤等价), 其他 WS 提供方也兼容
+		Addresses: make([]common.Address, 0),
 	}
 	return query
 }

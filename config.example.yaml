@@ -29,6 +29,7 @@ eip1559: false
 trader_contract: ""
 base_min_reserve: 5
 chunk_length: 100
+pool_chunk_length: 100
 max_concurrent: 10
 debug: false
 dexs:

@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 
@@ -81,14 +82,24 @@ func GetConfig(fileName string) (conf Configuration) {
 	} else {
 		conf = GetConfigJSON(fileName)
 	}
+	// 缺失字段给默认值, 避免 pie.Chunk 收到 0 直接 panic (dex/base.go BatchPool/GetTokensInfo)
+	if conf.ChunkLength <= 0 {
+		conf.ChunkLength = 100
+	}
+	if conf.PoolChunkLength <= 0 {
+		conf.PoolChunkLength = 100
+	}
 	return
 }
 
 func GetConfigJSON(fileName string) (conf Configuration) {
-	file, _ := os.Open(fileName)
+	file, err := os.Open(fileName)
+	if err != nil {
+		panic(fmt.Sprintf("无法打开配置文件 %s: %v", fileName, err))
+	}
 	defer file.Close()
 	conf = Configuration{}
-	err := json.NewDecoder(file).Decode(&conf)
+	err = json.NewDecoder(file).Decode(&conf)
 	if err != nil {
 		panic(err)
 	}
@@ -96,11 +107,14 @@ func GetConfigJSON(fileName string) (conf Configuration) {
 }
 
 func GetConfigYAML(fileName string) (conf Configuration) {
-	file, _ := os.Open(fileName)
+	file, err := os.Open(fileName)
+	if err != nil {
+		panic(fmt.Sprintf("无法打开配置文件 %s: %v", fileName, err))
+	}
 	defer file.Close()
 
 	conf = Configuration{}
-	err := yaml.NewDecoder(file).Decode(&conf)
+	err = yaml.NewDecoder(file).Decode(&conf)
 	if err != nil {
 		panic(err)
 	}
