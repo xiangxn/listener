@@ -21,7 +21,8 @@ docs/
 
 databackup
 broadcast
-# MongoDB 本地数据 (startdb.sh docker 挂载)
-data/
+# data/ 下: 黑名单 json 需 git 跟踪, 其余(MongoDB 本地数据等)忽略
+data/*
+!data/*.json
 *config.json
 *config.yaml

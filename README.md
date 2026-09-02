@@ -87,16 +87,21 @@ listener/
 │   ├── src/BSCTrader.sol   # BSC 专用版本
 │   └── Trader.go           # abigen 生成的 Go 绑定(由 BuildTraderToGo.sh 生成)
 ├── abis/                   # 各 DEX / ERC20 的 ABI JSON(启动时按名字加载)
+├── data/                   # 运行数据: <net>_{pool,token}_blacklist.json、token_erc20a.json(git 跟踪) + mongodb/(本地 MongoDB 数据, 已忽略)
+├── logs/                   # 运行日志(scripts/start.sh 生成, 已忽略)
 ├── doc/swap.go             # 旧版 Swap 合约绑定(保留)
 ├── test/                   # 单元测试与调试用 test
-└── 脚本:
-    ├── BuildTraderToGo.sh  # forge build + abigen 生成 trader/Trader.go
-    ├── build-linux.sh      # 交叉编译 Linux 版本(先执行上面的脚本)
-    ├── startdb.sh          # 启动本地 MongoDB
-    ├── publish.sh          # rsync 部署到远程服务器
-    ├── download_config.sh  # 从服务器拉取配置与黑名单
-    ├── download_db.sh      # 从服务器拉取 mongodump 备份并恢复
-    └── clean.sh            # 清理编译产物
+├── scripts/                # 辅助脚本(均自动切到仓库根目录执行)
+│   ├── check.sh            # 环境自检: config/docker/.env/foundry, 缺依赖自动安装
+│   ├── start.sh            # 本地模拟盘一键启动(check → MongoDB → 编译 → 后台运行)
+│   ├── stop.sh             # 一键停止 listener + MongoDB
+│   ├── BuildTraderToGo.sh  # forge build + abigen 生成 trader/Trader.go
+│   ├── build-linux.sh      # 交叉编译 Linux 版本(先执行上面的脚本)
+│   ├── startdb.sh          # 启动本地 MongoDB(Docker, 数据持久化 data/mongodb)
+│   ├── clean.sh            # 清理根目录生成文件(二进制/abi/logs/databackup + forge clean)
+│   ├── publish.sh          # rsync 部署二进制/配置/abis/黑名单(data/) 到远程
+│   ├── download_config.sh  # 从服务器拉取配置与黑名单(存入 data/)
+│   └── download_db.sh      # 从服务器拉取 mongodump 备份并恢复
 ```
 
 ## 三、核心工作流程
@@ -111,7 +116,7 @@ listener/
 
 - **新池入库**：事件地址先查 `pools` 表，缺失的池通过 Multicall 批量调用 `factory()/token0()/token1()` 拉取信息（[dex/base.go:259](dex/base.go#L259)）；工厂不在配置列表中的池直接加入池黑名单。
 - **新 Token 入库**：批量调用 `name/symbol/totalSupply/decimals`，兼容 name/symbol 为 bytes32 的旧式 ERC20（`token_erc20a.json` 名单，[dex/base.go:455](dex/base.go#L455)）。
-- 黑名单（`<net_name>_pool_blacklist.json`、`<net_name>_token_blacklist.json`）启动时加载、运行时自动追加并落盘。
+- 黑名单（`data/<net_name>_pool_blacklist.json`、`data/<net_name>_token_blacklist.json`、`data/<net_name>_token_erc20a.json`）启动时加载、运行时自动追加并落盘（[eventmonitor.go](monitor/eventmonitor.go) `blacklistFileName`）。
 
 ### 3. 价格刷新（multicall 单批读取）
 
@@ -233,7 +238,7 @@ dexs:                                # 监听/支持的 DEX 列表(按需增删)
 
 #### 1. 编译 Trader 合约的 Go 绑定文件（需安装 foundry、abigen）
 ```
-./BuildTraderToGo.sh          # 默认编译 Trader 合约; 也可带合约名: ./BuildTraderToGo.sh BSCTrader
+scripts/BuildTraderToGo.sh          # 默认编译 Trader 合约; 也可带合约名: scripts/BuildTraderToGo.sh BSCTrader
 ```
 
 ##### Robinhood Chain 专属（分支 feat/robinhood-port）
@@ -253,19 +258,19 @@ dexs:                                # 监听/支持的 DEX 列表(按需增删)
 #### 2. 编译项目
 Mac 下直接 `go build`；编译 Linux 版本：
 ```
-./build-linux.sh
+scripts/build-linux.sh
 ```
 
 #### 3. 启动数据库（Docker 运行 MongoDB，数据目录 data/mongodb，停止后数据保留）
 ```
-./startdb.sh        # 首次自动拉取 mongo:7.0 镜像; 重复执行幂等(容器已存在则直接 start)
+scripts/startdb.sh      # 首次自动拉取 mongo:7.0 镜像; 重复执行幂等(容器已存在则直接 start)
 ```
 
 #### 4. 部署到服务器（可选，也可以本地运行）
 ```
-./publish.sh [eth|bsc|base]   # rsync 二进制/配置/abis/黑名单 到远程
-./download_config.sh [eth|bsc|base]   # 拉取服务器配置与黑名单
-./download_db.sh [ethlistener|bsclistener]  # 拉取 mongodump 备份并 mongorestore
+scripts/publish.sh [eth|bsc|base]            # rsync 二进制/配置/abis/黑名单(data/) 到远程 /root/listener/{config,data}
+scripts/download_config.sh [eth|bsc|base]    # 拉取服务器配置与黑名单(存入本地 data/)
+scripts/download_db.sh [ethlistener|bsclistener]  # 拉取 mongodump 备份并 mongorestore
 ```
 
 #### 5. 准备配置
@@ -350,7 +355,7 @@ address public immutable borrowPool2 = 0xf2688Fb5B81049DFB7703aDa5e770543770612C
 | | 方式一：纯观察模式 | 方式二：分叉模拟模式 |
 |---|---|---|
 | 配置 | `simulation.enable: false` + `trader_contract: ""` | `simulation.enable: true` + `simulation.funds` |
-| 需要 `trader/Trader.go` 绑定 | ❌ | ✅（`./BuildTraderToGo.sh` 生成） |
+| 需要 `trader/Trader.go` 绑定 | ❌ | ✅（`scripts/BuildTraderToGo.sh` 生成） |
 | 需要 Anvil | ❌ | ✅ |
 | 真实链部署 Trader | ❌ | ❌（分叉上临时部署副本） |
 | 行为 | 算收益 + TG 通知，不发单不落库 | 分叉上完整执行 swap，结果落库（`simulation: true`） |
@@ -387,9 +392,37 @@ simulation:
 前提条件：
 
 - 本机安装 Foundry（`anvil`）与 `abigen`
-- 本地生成绑定文件：`./BuildTraderToGo.sh`（只编译合约生成 Go 绑定，**不部署任何合约**）
+- 本地生成绑定文件：`scripts/BuildTraderToGo.sh`（只编译合约生成 Go 绑定，**不部署任何合约**）
 - `simulation.funds` 必须是目标链上真实有余额的地址。Robinhood Chain 上可直接用大额 V3 池地址（如 USDG/WETH 0.01% 池 `0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca`，持 ~2071 WETH + ~6M USDG），impersonate 后即可转出
 
 ### 什么时候才需要真实部署 Trader？
 
 只有**真实模式**（`simulation.enable: false` + `trader_contract: 0x部署地址`）才需要先在目标链上部署 Trader 合约（Foundry 脚本 [trader/script/Trader.s.sol](trader/script/Trader.s.sol)，部署后把地址填入配置）。纸面交易阶段完全不需要。
+
+## 十四、本地 Robinhood 模拟盘（scripts/start.sh / scripts/stop.sh 一键启停）
+
+前置准备（只需一次）：
+
+1. **Foundry 无需手动装**：`scripts/start.sh` 的环境检查（独立脚本 `scripts/check.sh`）会自动检测并安装 anvil/cast/forge（装到 `~/.foundry`）；也可手动 `curl -L https://foundry.paradigm.xyz | bash && foundryup`
+2. **创建 .env**：`cp example.env .env`，把加密后的私钥填入 `PRIVATE_WIF`（见「七、密钥与环境变量」；模拟盘的钱包只用于 fork 上的测试账户，资金全部来自 impersonate `simulation.funds`，可用临时钱包，但加密流程与真实钱包相同）
+3. Docker 可用（MongoDB 由 start.sh 自动拉起，数据持久化在 data/mongodb）
+
+启动 / 停止（脚本都在 scripts/ 下，**任意目录执行均可**，会自动切到仓库根目录；黑名单等运行数据按仓库根目录 `data/` 读写）：
+
+```bash
+scripts/check.sh    # 环境自检：config / docker / .env / foundry（缺什么提示或自动安装）
+scripts/start.sh    # 环境检查(check.sh) → MongoDB → 编译 → 输入密码 → 后台运行 (日志 logs/arb.log)
+scripts/stop.sh     # 优雅停止 listener (SIGTERM) + 停止 MongoDB 容器
+tail -f logs/arb.log
+```
+
+- 密码仅用于解密 `.env` 的 `PRIVATE_WIF`，**不落盘**；start.sh 每次交互输入一次。需要完全免交互（如 cron/CI）时可预置 `export LISTENER_PASSWORD=xxx`（[main.go](main.go) `arb` 命令支持，不设该变量则照旧交互输入）。
+- `robinhood.config.yaml` 已开 `simulation.enable: true`（方式二：分叉模拟），且 `trader_contract` 为空——即使误配也只会跳过真实交易，**不会向 Robinhood 主网发任何交易**。
+- 停止 MongoDB 不影响数据（docker 卷在 data/mongodb），下次 start.sh 自动恢复；若只停 bot 想保留 Mongo，可 `kill -TERM $(cat logs/listener.pid)`。
+- 查看模拟结果：`./listener stats -M -D 1`
+- 清理构建/运行产生的临时文件（listener 二进制、Trader.abi/.bin、trader/Trader.go、databackup、logs/、编译缓存）：`scripts/clean.sh`（不删 data/mongodb 与黑名单）
+
+Robinhood 链两个已踩过的坑（改动配置/代码时注意）：
+
+1. **配置里的合约地址必须是 EIP-55 校验和格式**（从链上/区块浏览器复制的格式）。链上读出的地址全是大写混合校验和，代码与 config/黑名单/DB 做**字符串精确匹配**——全小写会导致池子被当成"不支持的交易市场"而静默丢弃（`robinhood.config.yaml` 曾因此跑不起来）。
+2. **Alchemy WS 订阅必须带 `address` 字段**：`eth_subscribe logs` 只给 `topics` 会被拒（`Invalid logs options...`），`createQuery` 已用空地址数组兼容（[eventmonitor.go:42](monitor/eventmonitor.go#L42)），换其他 WS 提供方时勿删。

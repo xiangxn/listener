@@ -110,7 +110,7 @@ gas_price: 1e-09             # 当前 baseFee ~0.53 gwei，1 gwei 可行
 eip1559: false
 ```
 
-- [x] 创建 `robinhood.config.yaml` + `robinhood_pool_blacklist.json` / `robinhood_token_blacklist.json` / `robinhood_token_erc20a.json`（空数组）
+- [x] 创建 `robinhood.config.yaml` + `data/robinhood_pool_blacklist.json` / `data/robinhood_token_blacklist.json` / `data/robinhood_token_erc20a.json`（空数组，黑名单统一放 `data/`）
 - [x] `foundry.toml` 加 `robinhood = ${RPC_ROBINHOOD}`；`example.env` 同步 RPC_ROBINHOOD(_TESTNET)
 - [x] `event_waiting_time` 调小（100ms 区块下 100ms 起步，实盘观察后再调）
 
