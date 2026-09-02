@@ -1,9 +1,12 @@
 #!/bin/bash
 # 本地 Robinhood 模拟盘一键启动
 #
-# 流程: 环境检查(check.sh, 缺依赖自动安装) → 启动 MongoDB → 编译 listener → 输入钱包密码 → 后台运行
-# 停止: scripts/stop.sh
-# 日志: tail -f logs/arb.log   (pid 记录在 logs/listener.pid)
+# 流程: 环境检查(check.sh, 缺依赖自动安装) → 启动 MongoDB → 编译 listener → 输入钱包密码 → 运行
+#
+# 用法:
+#   scripts/start.sh            前台运行(默认): 日志实时输出到终端, Ctrl+C 停止
+#   scripts/start.sh --bg       后台运行: 日志写入 logs/arb.log, 停止用 scripts/stop.sh
+# pid 两种模式都会写入 logs/listener.pid, 前台模式下也可从另一终端 scripts/stop.sh 停止
 #
 # 说明:
 #   - robinhood.config.yaml 已开 simulation.enable, 监听到套利机会时在本地 anvil fork 上
@@ -27,6 +30,21 @@ PID_FILE="${LOG_DIR}/listener.pid"
 red='\033[31m'; green='\033[32m'; yellow='\033[33m'; none='\033[0m'
 die()  { echo -e "${red}[出错]${none} $*" >&2; exit 1; }
 info() { echo -e "${green}[信息]${none} $*"; }
+warn() { echo -e "${yellow}[提示]${none} $*"; }
+
+# ---------- 运行模式 ----------
+# 默认前台(实时看日志, Ctrl+C 停止); --bg 后台运行(日志写 logs/arb.log, 配合 stop.sh)
+BG_MODE=0
+case "${1:-}" in
+    "") ;;
+    --bg|-b) BG_MODE=1 ;;
+    --help|-h)
+        echo "用法: $(basename "$0") [--bg]"
+        echo "  默认前台运行: 日志实时输出到终端, Ctrl+C 停止"
+        echo "  --bg         后台运行: 日志写入 logs/arb.log, 用 scripts/stop.sh 停止"
+        exit 0 ;;
+    *) die "未知参数 '$1'(支持 --bg 后台运行, 默认前台; --help 查看用法)" ;;
+esac
 
 mkdir -p "$LOG_DIR"
 
@@ -70,20 +88,29 @@ fi
 # ---------- 4. 启动 ----------
 # 把 ~/.foundry/bin 加入 PATH, 供 listener 调 anvil/cast(新装或未 source rc 的情况)
 export PATH="$HOME/.foundry/bin:${PATH}"
-info "启动 listener arb -c $CONFIG(模拟盘模式)..."
-rm -f "$LOG"
 export LISTENER_PASSWORD="$PW"
-nohup "$BIN" arb -c "$CONFIG" >"$LOG" 2>&1 </dev/null &
-PID=$!
-echo "$PID" > "$PID_FILE"
 
-sleep 5
-if ! kill -0 "$PID" 2>/dev/null; then
-    rm -f "$PID_FILE"
-    echo "----- 进程已退出, 日志末尾 -----"
-    tail -n 40 "$LOG" 2>/dev/null
-    die "listener 启动失败, 见上方日志"
+if [ "$BG_MODE" -eq 1 ]; then
+    # 后台模式: nohup 运行, 日志写入 logs/arb.log
+    info "启动 listener arb -c $CONFIG(模拟盘模式, 后台运行)..."
+    rm -f "$LOG"
+    nohup "$BIN" arb -c "$CONFIG" >"$LOG" 2>&1 </dev/null &
+    PID=$!
+    echo "$PID" > "$PID_FILE"
+
+    sleep 5
+    if ! kill -0 "$PID" 2>/dev/null; then
+        rm -f "$PID_FILE"
+        echo "----- 进程已退出, 日志末尾 -----"
+        tail -n 40 "$LOG" 2>/dev/null
+        die "listener 启动失败, 见上方日志"
+    fi
+    info "listener 运行中: pid=$PID (日志 $LOG, 停止: scripts/stop.sh)"
+    tail -n 3 "$LOG" 2>/dev/null || true
+else
+    # 前台模式(默认): 日志实时输出到终端, Ctrl+C 停止
+    # $$ 写入 pid 文件, exec 后仍是本进程, 方便另一终端 scripts/stop.sh 停止
+    echo $$ > "$PID_FILE"
+    info "启动 listener arb -c $CONFIG(模拟盘模式, 前台运行, Ctrl+C 停止)..."
+    exec "$BIN" arb -c "$CONFIG"
 fi
-
-info "listener 运行中: pid=$PID (日志 $LOG, 停止: scripts/stop.sh)"
-tail -n 3 "$LOG" 2>/dev/null || true

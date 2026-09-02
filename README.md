@@ -93,7 +93,7 @@ listener/
 ├── test/                   # 单元测试与调试用 test
 ├── scripts/                # 辅助脚本(均自动切到仓库根目录执行)
 │   ├── check.sh            # 环境自检: config/docker/.env/foundry, 缺依赖自动安装
-│   ├── start.sh            # 本地模拟盘一键启动(check → MongoDB → 编译 → 后台运行)
+│   ├── start.sh            # 本地模拟盘一键启动(check → MongoDB → 编译; 默认前台, --bg 后台)
 │   ├── stop.sh             # 一键停止 listener + MongoDB
 │   ├── BuildTraderToGo.sh  # forge build + abigen 生成 trader/Trader.go
 │   ├── build-linux.sh      # 交叉编译 Linux 版本(先执行上面的脚本)
@@ -410,10 +410,10 @@ simulation:
 启动 / 停止（脚本都在 scripts/ 下，**任意目录执行均可**，会自动切到仓库根目录；黑名单等运行数据按仓库根目录 `data/` 读写）：
 
 ```bash
-scripts/check.sh    # 环境自检：config / docker / .env / foundry（缺什么提示或自动安装）
-scripts/start.sh    # 环境检查(check.sh) → MongoDB → 编译 → 输入密码 → 后台运行 (日志 logs/arb.log)
-scripts/stop.sh     # 优雅停止 listener (SIGTERM) + 停止 MongoDB 容器
-tail -f logs/arb.log
+scripts/check.sh        # 环境自检：config / docker / .env / foundry（缺什么提示或自动安装）
+scripts/start.sh        # 环境检查(check.sh) → MongoDB → 编译 → 输入密码 → 前台运行 (日志实时输出, Ctrl+C 停止)
+scripts/start.sh --bg   # 同上但后台运行 (日志 logs/arb.log, 用 stop.sh 停止)
+scripts/stop.sh         # 优雅停止 listener (SIGTERM) + 停止 MongoDB 容器 (前台模式也可从另一终端调用)
 ```
 
 - 密码仅用于解密 `.env` 的 `PRIVATE_WIF`，**不落盘**；start.sh 每次交互输入一次。需要完全免交互（如 cron/CI）时可预置 `export LISTENER_PASSWORD=xxx`（[main.go](main.go) `arb` 命令支持，不设该变量则照旧交互输入）。

@@ -26,3 +26,5 @@ data/*
 !data/*.json
 *config.json
 *config.yaml
+
+logs
